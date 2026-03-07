@@ -1,5 +1,7 @@
 # EchoGraph
 
+![EchoGraph Architecture](arch_image.png)
+
 EchoGraph is a multi-agent living knowledge base that ingests content, detects contradictions, synthesizes higher-confidence knowledge, and answers questions with source citations.
 
 ## What You Get
