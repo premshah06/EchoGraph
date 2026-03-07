@@ -1,0 +1,2 @@
+Report B states that remote work decreases productivity for software teams due to communication overhead.
+The report suggests delayed feedback loops and fragmented collaboration are the main causes.
