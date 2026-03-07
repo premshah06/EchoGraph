@@ -1,6 +1,6 @@
 # EchoGraph
 
-![EchoGraph Architecture](arch_image.png)
+
 
 EchoGraph is a multi-agent living knowledge base that ingests content, detects contradictions, synthesizes higher-confidence knowledge, and answers questions with source citations.
 
@@ -12,6 +12,8 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Real-time WebSocket event stream with batching/compaction/replay
 - Responsive white/light frontend with Three.js + d3-force-3d visualization
 - Demo mode with pre-seeded sample graph when OpenAI key is unavailable
+
+![EchoGraph Architecture](arch_image.png)
 
 ## Architecture Docs
 
