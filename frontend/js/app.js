@@ -16,6 +16,9 @@ import {
   mapErrorToUserMessage,
   parseEventTimestamp,
   renderAnswerTemplate,
+  createIngestHistoryEntry,
+  finalizeIngestHistoryEntry as finalizeIngestHistoryEntryUtil,
+  renderIngestHistoryList,
 } from "./testable_utils.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -139,16 +142,7 @@ function markNodeTouched(nodeId, agent) {
 }
 
 function startIngestHistoryEntry(sourceLabel, type) {
-  const entry = {
-    id: Date.now(),
-    source: sourceLabel || "unknown",
-    type,
-    startedAt: new Date(),
-    finishedAt: null,
-    nodes: 0,
-    edges: 0,
-    status: "running",
-  };
+  const entry = createIngestHistoryEntry(sourceLabel, type);
   appState.ingestHistory.unshift(entry);
   appState.activeIngestEntry = entry;
   renderIngestHistory();
@@ -156,12 +150,8 @@ function startIngestHistoryEntry(sourceLabel, type) {
 }
 
 function finalizeIngestHistoryEntry(nodes, edges, status = "done") {
-  const entry = appState.activeIngestEntry;
-  if (!entry) return;
-  entry.finishedAt = new Date();
-  entry.nodes = nodes;
-  entry.edges = edges;
-  entry.status = status;
+  if (!appState.activeIngestEntry) return;
+  finalizeIngestHistoryEntryUtil(appState.activeIngestEntry, nodes, edges, status);
   appState.activeIngestEntry = null;
   renderIngestHistory();
 }
@@ -169,30 +159,7 @@ function finalizeIngestHistoryEntry(nodes, edges, status = "done") {
 function renderIngestHistory() {
   const list = document.getElementById("ingestHistoryList");
   if (!list) return;
-  if (!appState.ingestHistory.length) {
-    list.innerHTML = '<p class="ingest-history-empty">No ingestions yet.</p>';
-    return;
-  }
-  list.innerHTML = appState.ingestHistory.map((entry) => {
-    const started = entry.startedAt.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
-    const duration = entry.finishedAt
-      ? `${((entry.finishedAt - entry.startedAt) / 1000).toFixed(1)}s`
-      : "…";
-    const statusClass = entry.status === "done" ? "done" : entry.status === "error" ? "error" : "running";
-    const typeIcon = entry.type === "url" ? "🔗" : "📄";
-    return `
-      <div class="ingest-history-item ${statusClass}">
-        <div class="ingest-history-head">
-          <span class="ingest-history-source">${typeIcon} ${escapeHtml(entry.source)}</span>
-          <span class="ingest-history-status ${statusClass}">${entry.status}</span>
-        </div>
-        <div class="ingest-history-meta">
-          <span>${started}</span>
-          <span>${duration}</span>
-          ${entry.status !== "running" ? `<span>${entry.nodes} nodes · ${entry.edges} edges</span>` : "<span>Processing…</span>"}
-        </div>
-      </div>`;
-  }).join("");
+  list.innerHTML = renderIngestHistoryList(appState.ingestHistory);
 }
 
 class SessionSocket {

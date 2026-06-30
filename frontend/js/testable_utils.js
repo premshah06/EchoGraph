@@ -56,6 +56,66 @@ export function parseEventTimestamp(event) {
     return parsed;
 }
 
+export function createIngestHistoryEntry(sourceLabel, type, now = new Date()) {
+    return {
+        id: now.getTime(),
+        source: sourceLabel || "unknown",
+        type: type === "url" ? "url" : "document",
+        startedAt: now,
+        finishedAt: null,
+        nodes: 0,
+        edges: 0,
+        status: "running",
+    };
+}
+
+export function finalizeIngestHistoryEntry(entry, nodes, edges, status = "done", now = new Date()) {
+    if (!entry) return entry;
+    entry.finishedAt = now;
+    entry.nodes = nodes;
+    entry.edges = edges;
+    entry.status = status;
+    return entry;
+}
+
+export function renderIngestHistoryList(entries) {
+    if (!entries || !entries.length) {
+        return '<p class="ingest-history-empty">No ingestions yet.</p>';
+    }
+
+    return entries
+        .map((entry) => {
+            const started = entry.startedAt.toLocaleString(undefined, {
+                dateStyle: "short",
+                timeStyle: "short",
+            });
+            const duration = entry.finishedAt
+                ? `${((entry.finishedAt - entry.startedAt) / 1000).toFixed(1)}s`
+                : "…";
+            const statusClass =
+                entry.status === "done" ? "done" : entry.status === "error" ? "error" : "running";
+            const typeIcon = entry.type === "url" ? "\u{1F517}" : "\u{1F4C4}";
+
+            return `
+      <div class="ingest-history-item ${statusClass}">
+        <div class="ingest-history-head">
+          <span class="ingest-history-source">${typeIcon} ${escapeHtml(entry.source)}</span>
+          <span class="ingest-history-status ${statusClass}">${entry.status}</span>
+        </div>
+        <div class="ingest-history-meta">
+          <span>${started}</span>
+          <span>${duration}</span>
+          ${
+              entry.status !== "running"
+                  ? `<span>${entry.nodes} nodes · ${entry.edges} edges</span>`
+                  : "<span>Processing…</span>"
+          }
+        </div>
+      </div>`;
+        })
+        .join("");
+}
+
 export function renderAnswerTemplate(answer, sources = []) {
     const safeAnswer = escapeHtml(answer)
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
