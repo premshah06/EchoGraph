@@ -750,6 +750,22 @@ async def export_graph():
         raise HTTPException(status_code=500, detail=f"Failed to export graph: {exc}")
 
 
+@app.delete("/graph/nodes/{node_id}", dependencies=[Depends(require_api_key)])
+async def delete_node(node_id: str):
+    """Delete a single node and clean up its edges."""
+    try:
+        deleted = await run_in_threadpool(knowledge_store.delete_node, node_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+        logger.info("Deleted node %s", node_id)
+        return {"status": "success", "deleted_id": node_id}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error deleting node %s", node_id)
+        raise HTTPException(status_code=500, detail=f"Failed to delete node: {exc}")
+
+
 @app.delete("/graph/reset", dependencies=[Depends(require_api_key)])
 async def reset_graph():
     """Wipe the knowledge base."""

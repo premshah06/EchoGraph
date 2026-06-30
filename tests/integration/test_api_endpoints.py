@@ -50,6 +50,11 @@ class FakeStore:
     def reset(self):
         self.nodes = []
 
+    def delete_node(self, node_id: str) -> bool:
+        before = len(self.nodes)
+        self.nodes = [n for n in self.nodes if n["id"] != node_id]
+        return len(self.nodes) < before
+
 
 class FakeGraph:
     def __init__(self, kind: str):
@@ -180,6 +185,23 @@ def test_export_content_disposition_header(monkeypatch):
 
     assert "attachment" in response.headers.get("content-disposition", "")
     assert "echograph-export.json" in response.headers.get("content-disposition", "")
+
+
+def test_delete_node_endpoint(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.delete("/graph/nodes/node-1")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["deleted_id"] == "node-1"
+
+
+def test_delete_node_returns_404_for_unknown_id(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.delete("/graph/nodes/does-not-exist")
+
+    assert response.status_code == 404
 
 
 def test_reset_endpoint(monkeypatch):

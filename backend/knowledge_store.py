@@ -255,6 +255,31 @@ class KnowledgeStore:
             metadatas=[metadata],
         )
 
+    def delete_node(self, node_id: str) -> bool:
+        """Delete a single node and remove it from all neighbours' connection lists."""
+        try:
+            existing = self.get_node(node_id)
+            if not existing:
+                return False
+
+            # Remove this node from any neighbour that points to it.
+            all_nodes = self.get_all_nodes()
+            for node in all_nodes:
+                connected = node.get("connected_to", [])
+                if node_id not in connected:
+                    continue
+                rel_types = node.get("relationship_types", [])
+                pairs = [(t, r) for t, r in zip(connected, rel_types) if t != node_id]
+                node["connected_to"] = [p[0] for p in pairs]
+                node["relationship_types"] = [p[1] for p in pairs]
+                self.collection.update(ids=[node["id"]], metadatas=[self._prepare_metadata(node)])
+
+            self.collection.delete(ids=[node_id])
+            return True
+        except Exception:
+            logger.exception("Error deleting node %s", node_id)
+            return False
+
     def reset(self) -> None:
         """Wipe and recreate the knowledge collection."""
         self.client.delete_collection(self.COLLECTION_NAME)

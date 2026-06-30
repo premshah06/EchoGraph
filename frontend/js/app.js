@@ -660,6 +660,35 @@ class KnowledgeGraph3D {
     this.rebuildSimulation();
   }
 
+  removeNode(nodeId) {
+    const mesh = this.nodeMeshes.get(nodeId);
+    if (mesh) {
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+      this.nodeGroup.remove(mesh);
+      this.nodeMeshes.delete(nodeId);
+    }
+    this.forceNodesById.delete(nodeId);
+
+    // Remove any edges connected to this node.
+    for (const [key, line] of this.edgeObjects) {
+      if (line.userData.source === nodeId || line.userData.target === nodeId) {
+        line.geometry.dispose();
+        line.material.dispose();
+        this.edgeGroup.remove(line);
+        this.edgeObjects.delete(key);
+      }
+    }
+
+    this.forceLinks = this.forceLinks.filter(
+      (l) => l.source?.id !== nodeId && l.target?.id !== nodeId &&
+             l.source !== nodeId && l.target !== nodeId
+    );
+
+    this.rebuildSimulation();
+    this.refreshNodeRenderingMode();
+  }
+
   setGraph(nodes, edges) {
     this.clearGraph();
 
@@ -1478,6 +1507,7 @@ function showInspector(node) {
 
     <div class="insp-actions">
       <button class="insp-action-btn focus" data-node-id="${escapeHtml(node.id)}">🎯 Focus in Graph</button>
+      <button class="insp-action-btn delete danger" data-node-id="${escapeHtml(node.id)}">🗑 Delete</button>
       <button class="insp-action-btn clear">✕ Clear</button>
     </div>
   `;
@@ -1485,6 +1515,29 @@ function showInspector(node) {
   dom.inspectorBody.querySelector(".insp-action-btn.focus")
     ?.addEventListener("click", (e) => {
       graph.focusNode(e.currentTarget.dataset.nodeId);
+    });
+
+  dom.inspectorBody.querySelector(".insp-action-btn.delete")
+    ?.addEventListener("click", async (e) => {
+      const id = e.currentTarget.dataset.nodeId;
+      const concept = node.concept || id.slice(0, 8);
+      if (!window.confirm(`Delete node "${concept}"? This cannot be undone.`)) return;
+      const btn = e.currentTarget;
+      btn.disabled = true;
+      btn.textContent = "Deleting…";
+      try {
+        await apiRequest(`/graph/nodes/${id}`, { method: "DELETE" });
+        graph.removeNode(id);
+        appState.nodesById.delete(id);
+        appState.nodeTouchedBy.delete(id);
+        showInspector(null);
+        addEventLog("delete", `Node deleted: ${concept}`);
+        await refreshStats();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "🗑 Delete";
+        showUiError(err);
+      }
     });
 
   dom.inspectorBody.querySelector(".insp-action-btn.clear")

@@ -22,6 +22,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Real `/health` checks — pings ChromaDB and verifies the agent graphs compiled, returning 503 on a degraded dependency instead of a hardcoded "healthy"
 - Graph JSON export — one-click download of the full knowledge graph (nodes + edges + metadata) via `GET /graph/export` with `Content-Disposition` attachment header
 - Query history panel — persisted in localStorage, click any past query to restore its question and answer in the Query tab
+- Individual node deletion — `DELETE /graph/nodes/{id}` endpoint with automatic edge cleanup, plus a Delete button in the node inspector
 
 ![EchoGraph Architecture](arch_image.png)
 

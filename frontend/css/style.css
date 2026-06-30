@@ -1271,6 +1271,14 @@ textarea {
   border: 1px solid var(--border-bright);
 }
 
+.insp-action-btn.danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.insp-action-btn.danger:hover { background: rgba(239, 68, 68, 0.28); }
+
 /* ── Event Log ──────────────────────────────────────────────── */
 .event-log {
   display: flex;
