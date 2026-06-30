@@ -77,6 +77,8 @@ const dom = {
   synthesizedCount: document.getElementById("synthesizedCount"),
   clearIngestHistoryBtn: document.getElementById("clearIngestHistoryBtn"),
   clearQueryHistoryBtn: document.getElementById("clearQueryHistoryBtn"),
+  confidenceSlider: document.getElementById("confidenceSlider"),
+  confidenceSliderVal: document.getElementById("confidenceSliderVal"),
 
   graphContainer: document.getElementById("graph-container"),
   graphTooltip: document.getElementById("graphTooltip"),
@@ -830,20 +832,25 @@ class KnowledgeGraph3D {
 
   setFilters(filters) {
     this.filters = { ...this.filters, ...filters };
+    const minConf = this.filters.confidenceMin ?? 0;
 
     this.nodeMeshes.forEach((mesh, nodeId) => {
       const data = this.forceNodesById.get(nodeId)?.data;
       const nodeType = data?.node_type || "raw";
-      const visibleByFilter = Boolean(this.filters[nodeType]);
+      const conf = Number(data?.confidence ?? 1);
+      const visibleByFilter = Boolean(this.filters[nodeType]) && conf >= minConf;
       mesh.visible = this.useInstancedNodes ? false : visibleByFilter;
     });
 
     this.edgeObjects.forEach((line) => {
-      const sourceType =
-        this.forceNodesById.get(line.userData.source)?.data?.node_type || "raw";
-      const targetType =
-        this.forceNodesById.get(line.userData.target)?.data?.node_type || "raw";
-      const visibleByFilter = Boolean(this.filters[sourceType] && this.filters[targetType]);
+      const srcData = this.forceNodesById.get(line.userData.source)?.data;
+      const tgtData = this.forceNodesById.get(line.userData.target)?.data;
+      const sourceType = srcData?.node_type || "raw";
+      const targetType = tgtData?.node_type || "raw";
+      const srcConf = Number(srcData?.confidence ?? 1);
+      const tgtConf = Number(tgtData?.confidence ?? 1);
+      const visibleByFilter = Boolean(this.filters[sourceType] && this.filters[targetType])
+        && srcConf >= minConf && tgtConf >= minConf;
       line.userData.filterVisible = visibleByFilter;
       line.visible = visibleByFilter;
     });
@@ -2157,10 +2164,13 @@ function handleSocketEvent(event) {
 }
 
 function applyFilters() {
+  const minConf = Number(dom.confidenceSlider.value) / 100;
+  dom.confidenceSliderVal.textContent = `${dom.confidenceSlider.value}%`;
   appState.filters = {
     raw: dom.filterRaw.checked,
     synthesized: dom.filterSynthesized.checked,
     bridge: dom.filterBridge.checked,
+    confidenceMin: minConf,
   };
   graph.setFilters(appState.filters);
 }
@@ -2258,6 +2268,7 @@ function bindEvents() {
   dom.filterRaw.addEventListener("change", applyFilters);
   dom.filterSynthesized.addEventListener("change", applyFilters);
   dom.filterBridge.addEventListener("change", applyFilters);
+  dom.confidenceSlider.addEventListener("input", applyFilters);
 
   dom.closeDrawerBtn.addEventListener("click", () => {
     appState.selectedNodeId = null;

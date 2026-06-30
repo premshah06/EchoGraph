@@ -15,7 +15,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="css/style.css?v=16" />
+  <link rel="stylesheet" href="css/style.css?v=17" />
 
   <script type="importmap">
     {
@@ -236,6 +236,11 @@
             <span class="filter-dot"></span>
             <span>Bridge</span>
           </label>
+          <div class="confidence-filter">
+            <span class="confidence-filter-label">Min confidence</span>
+            <input type="range" id="confidenceSlider" min="0" max="100" value="0" step="5" />
+            <span id="confidenceSliderVal" class="confidence-filter-val">0%</span>
+          </div>
         </div>
 
         <div id="graph-container" aria-label="3D knowledge graph canvas">
@@ -331,6 +336,6 @@
     }
   </script>
 
-  <script type="module" src="js/app.js?v=15"></script>
+  <script type="module" src="js/app.js?v=16"></script>
 </body>
 </html>
