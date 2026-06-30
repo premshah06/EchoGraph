@@ -247,6 +247,21 @@ def test_invalid_inputs(monkeypatch):
     assert response.status_code == 422
 
 
+def test_response_includes_request_id_header(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    assert response.headers.get("x-request-id")
+
+
+def test_request_id_header_is_echoed_when_provided(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/health", headers={"X-Request-ID": "client-supplied-id"})
+
+    assert response.headers["x-request-id"] == "client-supplied-id"
+
+
 def test_websocket_connect_and_replay(monkeypatch):
     with build_client(monkeypatch) as client:
         main.websocket_manager.event_buffer["abc123"] = [

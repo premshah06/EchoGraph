@@ -14,6 +14,7 @@ import time
 import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 from typing import Deque, Dict, List, Optional, Set, Tuple
 
 import httpx
@@ -39,16 +40,45 @@ from backend.models import (
     URLIngestRequest,
 )
 
+request_id_var: ContextVar[str] = ContextVar("request_id", default="-")
+
+
+class RequestIdFilter(logging.Filter):
+    """Inject the active request id (if any) into every log record."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = request_id_var.get()
+        return True
+
+
+class JsonFormatter(logging.Formatter):
+    """Render log records as single-line JSON for log-aggregator friendliness."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "timestamp": self.formatTime(record, "%Y-%m-%dT%H:%M:%S%z"),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+            "request_id": getattr(record, "request_id", "-"),
+        }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
+        return json.dumps(payload)
+
+
 def configure_logging() -> None:
     """Configure console and rotating file logging once."""
     root = logging.getLogger()
     if root.handlers:
         return
 
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    formatter = JsonFormatter()
+    request_id_filter = RequestIdFilter()
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
+    stream_handler.addFilter(request_id_filter)
 
     file_handler = RotatingFileHandler(
         filename="echosystem.log",
@@ -56,6 +86,7 @@ def configure_logging() -> None:
         backupCount=5,
     )
     file_handler.setFormatter(formatter)
+    file_handler.addFilter(request_id_filter)
 
     root.setLevel(logging.INFO)
     root.addHandler(stream_handler)
@@ -385,6 +416,9 @@ if True:
 @app.middleware("http")
 async def request_observability_middleware(request: Request, call_next):
     """Apply endpoint rate-limiting and request latency logging."""
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    token = request_id_var.set(request_id)
+
     path = request.url.path
     client_host = request.client.host if request.client else "unknown"
 
@@ -404,32 +438,38 @@ async def request_observability_middleware(request: Request, call_next):
         window_seconds=window,
     )
 
-    if not allowed:
-        return JSONResponse(
-            status_code=429,
-            content={"detail": "Rate limit exceeded. Please retry later."},
-            headers={
-                "X-RateLimit-Limit": str(limit),
-                "X-RateLimit-Remaining": "0",
-                "Retry-After": str(retry_after),
-            },
+    try:
+        if not allowed:
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Please retry later."},
+                headers={
+                    "X-RateLimit-Limit": str(limit),
+                    "X-RateLimit-Remaining": "0",
+                    "Retry-After": str(retry_after),
+                },
+            )
+            response.headers["X-Request-ID"] = request_id
+            return response
+
+        started = time.perf_counter()
+        response = await call_next(request)
+        elapsed_ms = (time.perf_counter() - started) * 1000
+
+        response.headers["X-RateLimit-Limit"] = str(limit)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        response.headers["X-Request-ID"] = request_id
+
+        logger.info(
+            "%s %s -> %s (%.2f ms)",
+            request.method,
+            path,
+            response.status_code,
+            elapsed_ms,
         )
-
-    started = time.perf_counter()
-    response = await call_next(request)
-    elapsed_ms = (time.perf_counter() - started) * 1000
-
-    response.headers["X-RateLimit-Limit"] = str(limit)
-    response.headers["X-RateLimit-Remaining"] = str(remaining)
-
-    logger.info(
-        "%s %s -> %s (%.2f ms)",
-        request.method,
-        path,
-        response.status_code,
-        elapsed_ms,
-    )
-    return response
+        return response
+    finally:
+        request_id_var.reset(token)
 
 
 @app.get("/")

@@ -18,6 +18,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Node path tracing — click two nodes to highlight the shortest connecting path through the graph
 - Ingest history panel — tracks past ingestion sessions with source, duration, and resulting node/edge counts
 - Demo mode with pre-seeded sample graph when OpenAI key is unavailable
+- Structured JSON logging with per-request correlation IDs (`X-Request-ID`), propagated through agent pipeline execution
 
 ![EchoGraph Architecture](arch_image.png)
 
