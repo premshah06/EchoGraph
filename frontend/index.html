@@ -15,613 +15,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="css/style.css?v=7" />
-
-  <style>
-    html,
-    body {
-      margin: 0;
-      padding: 0;
-      min-height: 100%;
-      overscroll-behavior: none;
-    }
-
-    body {
-      font-family: "Space Grotesk", system-ui, sans-serif;
-      background: #0b0f1a;
-      color: #eef2ff;
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    .app-shell {
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .layout {
-      flex: 1;
-      display: grid;
-      grid-template-columns: minmax(320px, 420px) 1fr;
-      gap: 20px;
-      padding: 20px;
-      min-height: 0;
-    }
-
-    .panel {
-      min-height: 0;
-    }
-
-    .panel-controls {
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
-      overflow: auto;
-      max-height: calc(100vh - 120px);
-      padding-right: 6px;
-    }
-
-    .panel-graph {
-      position: relative;
-      display: flex;
-      flex-direction: column;
-      min-height: 720px;
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 20px;
-      overflow: hidden;
-      backdrop-filter: blur(10px);
-    }
-
-    .graph-toolbar,
-    .filter-row {
-      position: relative;
-      z-index: 5;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px;
-      background: rgba(10, 14, 25, 0.7);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    }
-
-    .toolbar-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-    }
-
-    .toolbar-group.right {
-      justify-content: flex-end;
-    }
-
-    .filter-row {
-      justify-content: flex-start;
-      gap: 16px;
-      padding-top: 10px;
-      padding-bottom: 10px;
-    }
-
-    .filter-row label {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      color: #dbeafe;
-    }
-
-    #graph-container {
-      position: relative;
-      flex: 1;
-      min-height: 620px;
-      width: 100%;
-      overflow: hidden;
-      touch-action: none;
-      background:
-        radial-gradient(circle at 20% 20%, rgba(37, 99, 235, 0.08), transparent 22%),
-        radial-gradient(circle at 80% 15%, rgba(6, 182, 212, 0.08), transparent 20%),
-        radial-gradient(circle at 70% 80%, rgba(124, 58, 237, 0.08), transparent 22%),
-        #020817;
-    }
-
-    #graph-container canvas {
-      display: block;
-      width: 100% !important;
-      height: 100% !important;
-      outline: none;
-    }
-
-    .legend {
-      position: absolute !important;
-      top: auto !important;
-      bottom: 16px !important;
-      right: 16px !important;
-      z-index: 6;
-      background: rgba(10, 14, 30, 0.82);
-      color: #e2e8f0;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 14px;
-      padding: 12px 16px;
-      min-width: 160px;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-      backdrop-filter: blur(12px);
-    }
-
-    .legend h3 {
-      margin: 0 0 10px;
-      font-size: 15px;
-      font-family: "Fraunces", serif;
-      color: #f1f5f9;
-    }
-
-    .legend p {
-      margin: 6px 0;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 13px;
-      color: #cbd5e1;
-    }
-
-    .dot {
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-      display: inline-block;
-    }
-
-    .dot.raw { background: #2563eb; }
-    .dot.synthesized { background: #06b6d4; }
-    .dot.bridge { background: #7c3aed; }
-
-    .graph-tooltip {
-      position: absolute;
-      z-index: 10;
-      pointer-events: none;
-      max-width: 220px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(15, 23, 42, 0.95);
-      color: #f8fafc;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
-      font-size: 13px;
-      line-height: 1.4;
-    }
-
-    .hidden {
-      display: none !important;
-    }
-
-    .card {
-      background: rgba(15, 23, 42, 0.9) !important;
-      border: 1px solid rgba(255, 255, 255, 0.1) !important;
-      border-radius: 18px !important;
-      padding: 16px !important;
-      color: #e2e8f0 !important;
-    }
-
-    .answer-box {
-      background: rgba(15, 23, 42, 0.6) !important;
-      border: 1px solid rgba(255, 255, 255, 0.08) !important;
-      border-radius: 12px !important;
-      padding: 14px !important;
-      color: #e2e8f0 !important;
-      font-size: 14px !important;
-      line-height: 1.6 !important;
-    }
-
-    .hint {
-      color: #94a3b8 !important;
-      font-size: 13px !important;
-    }
-
-    .card-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 12px;
-    }
-
-    .btn,
-    input,
-    textarea,
-    button {
-      font: inherit;
-    }
-
-    input,
-    textarea {
-      width: 100%;
-      border-radius: 12px;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      background: rgba(255, 255, 255, 0.05);
-      color: #f8fafc;
-      padding: 12px 14px;
-    }
-
-    textarea {
-      resize: vertical;
-    }
-
-    .btn {
-      border: none;
-      border-radius: 12px;
-      padding: 10px 14px;
-      cursor: pointer;
-    }
-
-    .btn.small {
-      padding: 8px 12px;
-      font-size: 13px;
-    }
-
-    .btn.primary {
-      background: #2563eb;
-      color: white;
-    }
-
-    .btn.secondary {
-      background: #0f766e;
-      color: white;
-    }
-
-    .btn.ghost {
-      background: rgba(255, 255, 255, 0.08);
-      color: #e2e8f0;
-    }
-
-    .btn.danger {
-      background: #b91c1c;
-      color: white;
-    }
-
-    .chip,
-    .status-pill {
-      padding: 6px 10px;
-      border-radius: 999px;
-      font-size: 12px;
-      white-space: nowrap;
-    }
-
-    .status-pill.online {
-      background: rgba(34, 197, 94, 0.18);
-      color: #bbf7d0;
-    }
-
-    .status-pill.offline {
-      background: rgba(239, 68, 68, 0.18);
-      color: #fecaca;
-    }
-
-    .answer-box {
-      margin-top: 12px;
-      min-height: 120px;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-    }
-
-    .stats-grid > div {
-      background: rgba(255, 255, 255, 0.05);
-      padding: 14px;
-      border-radius: 14px;
-    }
-
-    .stats-grid strong {
-      display: block;
-      margin-top: 8px;
-      font-size: 22px;
-    }
-
-    .card-actions {
-      margin-top: 14px;
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-
-    .progress-wrap {
-      height: 10px;
-      border-radius: 999px;
-      overflow: hidden;
-      background: rgba(255, 255, 255, 0.08);
-      margin: 10px 0 6px;
-    }
-
-    .progress-bar {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #2563eb, #06b6d4);
-      transition: width 180ms ease;
-    }
-
-    .side-drawer {
-      position: fixed;
-      top: 0;
-      right: 0;
-      width: min(420px, 95vw);
-      height: 100vh;
-      background: #0f172a;
-      color: white;
-      z-index: 50;
-      transform: translateX(100%);
-      transition: transform 220ms ease;
-      box-shadow: -20px 0 40px rgba(0, 0, 0, 0.35);
-      display: flex;
-      flex-direction: column;
-    }
-
-    .side-drawer.open {
-      transform: translateX(0);
-    }
-
-    .drawer-backdrop {
-      position: fixed;
-      inset: 0;
-      background: rgba(2, 6, 23, 0.5);
-      z-index: 45;
-    }
-
-    .drawer-header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .drawer-tabs {
-      display: flex;
-      gap: 8px;
-    }
-
-    .drawer-tab {
-      border: none !important;
-      border-radius: 10px !important;
-      padding: 8px 14px !important;
-      background: rgba(255, 255, 255, 0.08) !important;
-      color: #94a3b8 !important;
-      cursor: pointer !important;
-      font-size: 14px !important;
-      font-weight: 500 !important;
-    }
-
-    .drawer-tab.active {
-      background: #2563eb !important;
-      color: #ffffff !important;
-    }
-
-    .drawer-section {
-      padding: 16px !important;
-      overflow: auto !important;
-      flex: 1 !important;
-      min-height: 0 !important;
-      background: none !important;
-      border: none !important;
-    }
-
-    .event-log {
-      display: flex !important;
-      flex-direction: column !important;
-      gap: 6px !important;
-      background: none !important;
-      border: none !important;
-      padding: 0 !important;
-    }
-
-    .log-item {
-      padding: 8px 12px !important;
-      border-radius: 10px !important;
-      background: rgba(255, 255, 255, 0.05) !important;
-      border: 1px solid rgba(255, 255, 255, 0.07) !important;
-      font-size: 13px !important;
-      color: #cbd5e1 !important;
-      display: flex !important;
-      gap: 10px !important;
-      align-items: baseline !important;
-    }
-
-    .log-item time {
-      color: #475569 !important;
-      font-size: 11px !important;
-      white-space: nowrap !important;
-      flex-shrink: 0 !important;
-    }
-
-    .log-item span {
-      color: #e2e8f0 !important;
-    }
-
-    .log-item strong {
-      color: #93c5fd !important;
-      font-weight: 600 !important;
-    }
-
-    .drawer-events-head {
-      display: flex !important;
-      align-items: center !important;
-      justify-content: space-between !important;
-      margin-bottom: 14px !important;
-    }
-
-    .drawer-section-title {
-      font-size: 16px !important;
-      font-weight: 700 !important;
-      color: #f1f5f9 !important;
-    }
-
-    #loopBadge {
-      background: rgba(255, 255, 255, 0.08) !important;
-      color: #94a3b8 !important;
-      font-size: 12px !important;
-    }
-
-    .inspector-field {
-      display: grid !important;
-      gap: 3px !important;
-      padding: 10px 0 !important;
-      margin: 0 !important;
-      background: none !important;
-      border: none !important;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.07) !important;
-      border-radius: 0 !important;
-    }
-
-    .inspector-field:last-child {
-      border-bottom: none !important;
-    }
-
-    .inspector-field strong {
-      font-size: 11px !important;
-      font-weight: 600 !important;
-      text-transform: uppercase !important;
-      letter-spacing: 0.06em !important;
-      color: #64748b !important;
-    }
-
-    .inspector-field span,
-    .inspector-field li {
-      font-size: 13px !important;
-      color: #e2e8f0 !important;
-      word-break: break-all;
-    }
-
-    .inspector-body {
-      background: none !important;
-      border: none !important;
-      padding: 0 !important;
-    }
-
-    .connections-list {
-      margin: 6px 0 0 !important;
-      padding-left: 16px !important;
-      color: #cbd5e1 !important;
-    }
-
-    .connections-list li {
-      margin-bottom: 4px !important;
-    }
-
-    /* ── Contrast overrides: force light text on dark backgrounds ── */
-    h1, h2, h3, h4 {
-      color: #f1f5f9;
-      margin: 0 0 10px;
-    }
-
-    label {
-      color: #94a3b8 !important;
-      font-size: 13px;
-      font-weight: 500;
-      display: block;
-      margin-bottom: 6px;
-      margin-top: 12px;
-    }
-
-    label:first-child {
-      margin-top: 0;
-    }
-
-    p, li, span {
-      color: #cbd5e1;
-    }
-
-    strong {
-      color: #f1f5f9;
-    }
-
-    .chip {
-      background: rgba(255, 255, 255, 0.1);
-      color: #e2e8f0;
-    }
-
-    .btn.ghost {
-      color: #e2e8f0;
-    }
-
-    input::placeholder, textarea::placeholder {
-      color: #64748b;
-    }
-
-    .site-header, .site-nav {
-      background: rgba(2, 8, 23, 0.85);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-      color: #f1f5f9;
-    }
-
-    .site-nav a, .brand strong, .brand small, .brand-copy {
-      color: #f1f5f9;
-    }
-
-    .nav-links a {
-      color: #cbd5e1;
-    }
-
-    .demo-banner {
-      background: rgba(245, 158, 11, 0.15);
-      border-color: rgba(245, 158, 11, 0.35);
-      color: #fde68a;
-    }
-
-    @media (max-width: 1100px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      .panel-controls {
-        max-height: none;
-        overflow: visible;
-      }
-
-      .panel-graph {
-        min-height: 75vh;
-      }
-
-      #graph-container {
-        min-height: 65vh;
-      }
-    }
-
-    @media (max-width: 640px) {
-      .layout {
-        padding: 12px;
-        gap: 12px;
-      }
-
-      .legend {
-        top: auto !important;
-        bottom: 12px !important;
-        right: 12px !important;
-        min-width: 140px;
-        padding: 10px 12px;
-      }
-
-      .graph-toolbar,
-      .filter-row {
-        padding: 12px;
-      }
-
-      .toolbar-group.right {
-        width: 100%;
-        justify-content: stretch;
-      }
-
-      .toolbar-group.right input {
-        flex: 1;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="css/style.css?v=12" />
 
   <script type="importmap">
     {
@@ -637,7 +31,18 @@
     <header class="site-header">
       <nav class="site-nav">
         <a class="brand" href="#" aria-label="EchoGraph home">
-          <span class="brand-mark"></span>
+          <svg class="brand-mark" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <polygon id="hx" points="0,-5 4.33,-2.5 4.33,2.5 0,5 -4.33,2.5 -4.33,-2.5"/>
+            </defs>
+            <use href="#hx" transform="translate(19,19)" fill="#f59e0b"/>
+            <use href="#hx" transform="translate(27.66,19)"  fill="#f59e0b" opacity="0.45"/>
+            <use href="#hx" transform="translate(23.33,26.5)" fill="#f59e0b" opacity="0.45"/>
+            <use href="#hx" transform="translate(14.67,26.5)" fill="#f59e0b" opacity="0.45"/>
+            <use href="#hx" transform="translate(10.34,19)"  fill="#f59e0b" opacity="0.45"/>
+            <use href="#hx" transform="translate(14.67,11.5)" fill="#f59e0b" opacity="0.45"/>
+            <use href="#hx" transform="translate(23.33,11.5)" fill="#f59e0b" opacity="0.45"/>
+          </svg>
           <span class="brand-copy">
             <strong>EchoGraph</strong>
             <small>Living Knowledge Base</small>
@@ -672,88 +77,112 @@
 
     <main class="layout">
       <aside class="panel panel-controls" id="ingestSection">
-        <section class="card">
-          <div class="card-head">
-            <h2>Ingest Content</h2>
-            <span id="ingestState" class="chip">Idle</span>
-          </div>
 
-          <label for="fileInput">File Upload (.txt / .pdf)</label>
-          <input id="fileInput" type="file" accept=".txt,.pdf,text/plain,application/pdf" />
+        <!-- Sidebar tab navigation -->
+        <div class="sidebar-tabs" role="tablist">
+          <button class="sidebar-tab active" data-tab="ingest" role="tab" type="button">Ingest</button>
+          <button class="sidebar-tab" data-tab="query" role="tab" type="button">Query</button>
+          <button class="sidebar-tab" data-tab="stats" role="tab" type="button">Stats</button>
+        </div>
 
-          <div class="progress-wrap" aria-live="polite">
-            <div id="uploadProgress" class="progress-bar"></div>
-          </div>
-          <p id="uploadHint" class="hint">Select a file or paste text below.</p>
+        <!-- Ingest pane -->
+        <div class="sidebar-pane" data-pane="ingest">
+          <section class="card">
+            <div class="card-head">
+              <h2>Ingest Content</h2>
+              <span id="ingestState" class="chip">Idle</span>
+            </div>
 
-          <label for="documentContent">Direct Text</label>
-          <textarea id="documentContent" rows="7" placeholder="Paste document text..."></textarea>
+            <label for="fileInput" class="file-drop-zone">
+              <span class="file-drop-icon">&#8679;</span>
+              <span class="file-drop-title">Drop file or click to upload</span>
+              <span class="file-drop-hint">.txt or .pdf &middot; max 50 000 chars</span>
+              <input id="fileInput" type="file" accept=".txt,.pdf,text/plain,application/pdf" />
+            </label>
 
-          <label for="sourceLabel">Source Label</label>
-          <input id="sourceLabel" type="text" placeholder="whitepaper-2026.txt" />
+            <div class="progress-wrap" aria-live="polite">
+              <div id="uploadProgress" class="progress-bar"></div>
+            </div>
+            <p id="uploadHint" class="hint">Select a file or paste text below.</p>
 
-          <button id="ingestDocumentBtn" class="btn primary" type="button">
-            Ingest Document
-          </button>
-        </section>
+            <label for="documentContent">Direct Text</label>
+            <textarea id="documentContent" rows="7" placeholder="Paste document text..."></textarea>
 
-        <section class="card">
-          <h2>Ingest URL</h2>
-          <label for="urlInput">Web URL</label>
-          <input
-            id="urlInput"
-            type="url"
-            placeholder="https://example.com/research-article"
-          />
-          <button id="ingestUrlBtn" class="btn secondary" type="button">
-            Ingest URL
-          </button>
-        </section>
+            <label for="sourceLabel">Source Label</label>
+            <input id="sourceLabel" type="text" placeholder="whitepaper-2026.txt" />
 
-        <section class="card" id="querySection">
-          <div class="card-head">
-            <h2>Ask The Scholar</h2>
-            <div id="querySpinner" class="spinner hidden" aria-hidden="true"></div>
-          </div>
+            <button id="ingestDocumentBtn" class="btn primary" type="button">
+              Ingest Document
+            </button>
+          </section>
 
-          <label for="queryInput">Question</label>
-          <input
-            id="queryInput"
-            type="text"
-            placeholder="What changed between conflicting sources?"
-          />
-          <button id="queryBtn" class="btn primary" type="button">Run Query</button>
+          <section class="card">
+            <h2>Ingest URL</h2>
+            <label for="urlInput">Web URL</label>
+            <input
+              id="urlInput"
+              type="url"
+              placeholder="https://example.com/research-article"
+            />
+            <button id="ingestUrlBtn" class="btn secondary" type="button">
+              Ingest URL
+            </button>
+          </section>
+        </div>
 
-          <article id="answerBox" class="answer-box" aria-live="polite">
-            <p class="placeholder">Answers and citations will appear here.</p>
-          </article>
-        </section>
+        <!-- Query pane -->
+        <div class="sidebar-pane hidden" data-pane="query">
+          <section class="card" id="querySection">
+            <div class="card-head">
+              <h2>Ask The Scholar</h2>
+              <div id="querySpinner" class="spinner hidden" aria-hidden="true"></div>
+            </div>
 
-        <section class="card">
-          <h2>Graph Statistics</h2>
-          <div id="statsGrid" class="stats-grid">
-            <div><span>Nodes</span><strong id="nodeCount">0</strong></div>
-            <div><span>Edges</span><strong id="edgeCount">0</strong></div>
-            <div><span>Contradictions</span><strong id="contradictionCount">0</strong></div>
-            <div><span>Synthesized</span><strong id="synthesizedCount">0</strong></div>
-          </div>
+            <label for="queryInput">Question</label>
+            <input
+              id="queryInput"
+              type="text"
+              placeholder="What changed between conflicting sources?"
+            />
+            <button id="queryBtn" class="btn primary" type="button">Run Query</button>
 
-          <div class="card-actions">
-            <button id="refreshStatsBtn" class="btn ghost" type="button">Refresh</button>
-            <button id="resetGraphBtn" class="btn danger" type="button">Reset Graph</button>
-          </div>
-        </section>
+            <article id="answerBox" class="answer-box" aria-live="polite">
+              <p class="placeholder">Answers and citations will appear here.</p>
+            </article>
+          </section>
+        </div>
+
+        <!-- Stats pane -->
+        <div class="sidebar-pane hidden" data-pane="stats">
+          <section class="card">
+            <h2>Graph Statistics</h2>
+            <div id="statsGrid" class="stats-grid">
+              <div><span>Nodes</span><strong id="nodeCount">0</strong></div>
+              <div><span>Edges</span><strong id="edgeCount">0</strong></div>
+              <div><span>Contradictions</span><strong id="contradictionCount">0</strong></div>
+              <div><span>Synthesized</span><strong id="synthesizedCount">0</strong></div>
+            </div>
+
+            <div class="card-actions">
+              <button id="refreshStatsBtn" class="btn ghost" type="button">Refresh</button>
+              <button id="resetGraphBtn" class="btn danger" type="button">Reset Graph</button>
+            </div>
+          </section>
+        </div>
+
       </aside>
 
       <section class="panel panel-graph" id="graphSection">
         <div class="graph-toolbar">
           <div class="toolbar-group">
-            <button id="resetViewBtn" class="btn ghost small" type="button">Reset View</button>
-            <button id="physicsToggleBtn" class="btn ghost small" type="button">Pause Physics</button>
-            <button id="zoomInBtn" class="btn ghost small" type="button">Zoom +</button>
-            <button id="zoomOutBtn" class="btn ghost small" type="button">Zoom -</button>
-            <button id="openEventsBtn" class="btn ghost small" type="button">⚡ Events</button>
-            <button id="clearHighlightBtn" class="btn ghost small" type="button">Clear Focus</button>
+            <button id="resetViewBtn"          class="btn ghost small" type="button">&#8635; Reset</button>
+            <button id="physicsToggleBtn"      class="btn ghost small" type="button">&#9646; Physics</button>
+            <button id="zoomInBtn"             class="btn ghost small" type="button">&#65291; Zoom</button>
+            <button id="zoomOutBtn"            class="btn ghost small" type="button">&#65293; Zoom</button>
+            <button id="openEventsBtn"         class="btn ghost small" type="button">&#9889; Events</button>
+            <button id="openPipelineBtn"       class="btn ghost small" type="button">&#9654; Pipeline</button>
+            <button id="contradictionModeBtn"  class="btn ghost small" type="button">&#9888; Contradictions</button>
+            <button id="clearHighlightBtn"     class="btn ghost small" type="button">&#10005; Focus</button>
           </div>
 
           <div class="toolbar-group right">
@@ -763,19 +192,45 @@
         </div>
 
         <div class="filter-row">
-          <label><input type="checkbox" id="filterRaw" checked /> Raw</label>
-          <label><input type="checkbox" id="filterSynthesized" checked /> Synthesized</label>
-          <label><input type="checkbox" id="filterBridge" checked /> Bridge</label>
+          <label class="filter-pill raw-pill">
+            <input type="checkbox" id="filterRaw" checked />
+            <span class="filter-dot"></span>
+            <span>Raw</span>
+          </label>
+          <label class="filter-pill synth-pill">
+            <input type="checkbox" id="filterSynthesized" checked />
+            <span class="filter-dot"></span>
+            <span>Synthesized</span>
+          </label>
+          <label class="filter-pill bridge-pill">
+            <input type="checkbox" id="filterBridge" checked />
+            <span class="filter-dot"></span>
+            <span>Bridge</span>
+          </label>
         </div>
 
         <div id="graph-container" aria-label="3D knowledge graph canvas">
           <div id="graphTooltip" class="graph-tooltip hidden"></div>
           <aside class="legend">
-            <h3>Legend</h3>
-            <p><span class="dot raw"></span>Raw Node</p>
-            <p><span class="dot synthesized"></span>Synthesized Node</p>
-            <p><span class="dot bridge"></span>Bridge Node</p>
+            <h3>Nodes</h3>
+            <p><span class="dot raw"></span>Raw</p>
+            <p><span class="dot synthesized"></span>Synthesized</p>
+            <p><span class="dot bridge"></span>Bridge</p>
+            <h3 style="margin-top:10px;">Edges</h3>
+            <p><span class="edge-swatch" style="background:#3b82f6"></span>Supports</p>
+            <p><span class="edge-swatch" style="background:#ef4444"></span>Questions</p>
+            <p><span class="edge-swatch" style="background:#8b5cf6"></span>Reframes</p>
+            <p><span class="edge-swatch" style="background:#10b981"></span>Synthesizes</p>
           </aside>
+        </div>
+
+        <!-- Contradiction panel sits inside graph panel, below canvas -->
+        <div id="contradictionPanel" class="contradiction-panel hidden">
+          <div class="contradiction-panel-head">
+            <span class="contradiction-panel-title">&#9888; Contradiction Pairs</span>
+            <button id="closeContradictionPanelBtn" class="btn ghost small" type="button">&#10005; Close</button>
+          </div>
+          <div id="contradictionList" class="contradiction-list"></div>
         </div>
       </section>
     </main>
@@ -790,14 +245,11 @@
   <aside id="sideDrawer" class="side-drawer" aria-label="Inspector and Events panel">
     <div class="drawer-header">
       <div class="drawer-tabs">
-        <button id="drawerTabInspector" class="drawer-tab active" type="button">
-          Inspector
-        </button>
-        <button id="drawerTabEvents" class="drawer-tab" type="button">
-          ⚡ Events
-        </button>
+        <button id="drawerTabInspector" class="drawer-tab active" type="button">Inspector</button>
+        <button id="drawerTabEvents"   class="drawer-tab"        type="button">&#9889; Events</button>
+        <button id="drawerTabPipeline" class="drawer-tab"        type="button">&#9654; Pipeline</button>
       </div>
-      <button id="closeDrawerBtn" class="btn ghost small" type="button">✕ Close</button>
+      <button id="closeDrawerBtn" class="btn ghost small" type="button">&#10005; Close</button>
     </div>
 
     <div id="drawerInspectorSection" class="drawer-section">
@@ -813,8 +265,43 @@
       </div>
       <div id="eventLog" class="event-log" aria-live="polite"></div>
     </div>
+
+    <div id="drawerPipelineSection" class="drawer-section hidden">
+      <div class="drawer-events-head">
+        <span class="drawer-section-title">Agent Pipeline</span>
+        <button id="clearPipelineBtn" class="btn ghost small" type="button">Clear</button>
+      </div>
+      <div id="pipelineTimeline" class="pipeline-timeline"></div>
+    </div>
   </aside>
 
-  <script type="module" src="js/app.js?v=6"></script>
+  <!-- Sidebar tab switching + drag-drop zone -->
+  <script>
+    document.querySelectorAll('.sidebar-tab').forEach(function(tab) {
+      tab.addEventListener('click', function() {
+        document.querySelectorAll('.sidebar-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.sidebar-pane').forEach(function(p) { p.classList.add('hidden'); });
+        tab.classList.add('active');
+        document.querySelector('.sidebar-pane[data-pane="' + tab.dataset.tab + '"]').classList.remove('hidden');
+      });
+    });
+
+    var dropZone = document.querySelector('.file-drop-zone');
+    if (dropZone) {
+      dropZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+      });
+      dropZone.addEventListener('dragleave', function() {
+        dropZone.classList.remove('drag-over');
+      });
+      dropZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+      });
+    }
+  </script>
+
+  <script type="module" src="js/app.js?v=10"></script>
 </body>
 </html>

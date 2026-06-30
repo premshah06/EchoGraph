@@ -26,20 +26,20 @@ const API_BASE = IS_FILE_ORIGIN ? "http://localhost:8000" : window.location.orig
 const WS_BASE = API_BASE.replace(/^http/i, "ws");
 
 const NODE_COLORS = {
-  raw: 0x2563eb,
-  synthesized: 0x06b6d4,
-  bridge: 0x7c3aed,
+  raw: 0xf59e0b,         // amber gold
+  synthesized: 0x10b981, // sage green
+  bridge: 0xfb923c,      // clay orange
 };
 
 const EDGE_COLORS = {
-  supports: 0x3b82f6,
-  extends: 0x0891b2,
-  reframes: 0x9333ea,
-  questions: 0xdc2626,
-  is_prerequisite_of: 0xea580c,
-  bridge: 0x0d9488,
-  synthesizes: 0x16a34a,
-  related: 0x64748b,
+  supports:           0xf59e0b, // amber
+  extends:            0xfbbf24, // warm gold
+  reframes:           0xfb923c, // clay
+  questions:          0xef4444, // red
+  is_prerequisite_of: 0xf97316, // orange
+  bridge:             0x10b981, // sage
+  synthesizes:        0x34d399, // emerald
+  related:            0x78716c, // warm grey
 };
 
 const dom = {
@@ -92,10 +92,19 @@ const dom = {
   closeDrawerBtn: document.getElementById("closeDrawerBtn"),
   drawerTabInspector: document.getElementById("drawerTabInspector"),
   drawerTabEvents: document.getElementById("drawerTabEvents"),
+  drawerTabPipeline: document.getElementById("drawerTabPipeline"),
   drawerInspectorSection: document.getElementById("drawerInspectorSection"),
   drawerEventsSection: document.getElementById("drawerEventsSection"),
+  drawerPipelineSection: document.getElementById("drawerPipelineSection"),
   openEventsBtn: document.getElementById("openEventsBtn"),
+  openPipelineBtn: document.getElementById("openPipelineBtn"),
   clearHighlightBtn: document.getElementById("clearHighlightBtn"),
+  contradictionModeBtn: document.getElementById("contradictionModeBtn"),
+  contradictionPanel: document.getElementById("contradictionPanel"),
+  contradictionList: document.getElementById("contradictionList"),
+  closeContradictionPanelBtn: document.getElementById("closeContradictionPanelBtn"),
+  pipelineTimeline: document.getElementById("pipelineTimeline"),
+  clearPipelineBtn: document.getElementById("clearPipelineBtn"),
 };
 
 const appState = {
@@ -111,7 +120,20 @@ const appState = {
     bridge: true,
   },
   lastContradiction: null,
+  contradictionMode: false,
+  contradictionPairs: [],
+  nodeTouchedBy: new Map(),
 };
+
+function markNodeTouched(nodeId, agent) {
+  if (!nodeId || !agent) return;
+  let agents = appState.nodeTouchedBy.get(nodeId);
+  if (!agents) {
+    agents = new Set();
+    appState.nodeTouchedBy.set(nodeId, agents);
+  }
+  agents.add(agent);
+}
 
 class SessionSocket {
   constructor({ onEvent, onStatus }) {
@@ -786,17 +808,56 @@ class KnowledgeGraph3D {
 
   searchAndFocus(term) {
     const query = term.trim().toLowerCase();
-    if (!query) return null;
+    if (!query) return { matches: [], count: 0 };
 
-    for (const [nodeId, forceNode] of this.forceNodesById.entries()) {
+    const matches = [];
+    for (const forceNode of this.forceNodesById.values()) {
       const concept = (forceNode.data.concept || "").toLowerCase();
-      if (concept.includes(query)) {
-        this.focusNode(nodeId);
-        return forceNode.data;
+      const summary = (forceNode.data.summary || "").toLowerCase();
+      const source = (forceNode.data.source || "").toLowerCase();
+      if (concept.includes(query) || summary.includes(query) || source.includes(query)) {
+        matches.push(forceNode.data);
       }
     }
 
-    return null;
+    return { matches, count: matches.length };
+  }
+
+  applySearchHighlight(nodeIds) {
+    const matchSet = new Set(nodeIds);
+
+    this.nodeMeshes.forEach((mesh, nodeId) => {
+      if (matchSet.has(nodeId)) {
+        mesh.userData.pulseUntil = performance.now() + 9000;
+        mesh.userData.pulseColor = new THREE.Color(0xfbbf24);
+        mesh.material.transparent = false;
+        mesh.material.opacity = 1;
+        mesh.userData.searchScaleTarget = 1.3;
+      } else {
+        mesh.material.transparent = true;
+        mesh.material.opacity = 0.1;
+        mesh.userData.searchScaleTarget = 0.8;
+      }
+    });
+
+    this.edgeObjects.forEach((line) => {
+      const src = line.userData.source;
+      const tgt = line.userData.target;
+      line.material.opacity = matchSet.has(src) && matchSet.has(tgt) ? 1 : 0.08;
+    });
+  }
+
+  clearSearchHighlight() {
+    this.nodeMeshes.forEach((mesh) => {
+      mesh.material.transparent = false;
+      mesh.material.opacity = 1;
+      mesh.userData.searchScaleTarget = 1;
+      mesh.userData.pulseUntil = 0;
+    });
+
+    this.edgeObjects.forEach((line) => {
+      line.material.opacity = 0.7;
+    });
   }
 
   setQueryHighlight(nodeIds) {
@@ -827,6 +888,42 @@ class KnowledgeGraph3D {
       mesh.material.opacity = 1;
     });
 
+    this.edgeObjects.forEach((line) => {
+      line.material.opacity = 0.7;
+    });
+  }
+
+  setContradictionMode(pairIds) {
+    const contradictionSet = new Set(pairIds.flat());
+
+    this.nodeMeshes.forEach((mesh, nodeId) => {
+      if (contradictionSet.has(nodeId)) {
+        mesh.userData.pulseUntil = performance.now() + 99999;
+        mesh.userData.pulseColor = new THREE.Color(0xef4444);
+        mesh.material.transparent = false;
+        mesh.material.opacity = 1;
+        mesh.userData.searchScaleTarget = 1.2;
+      } else {
+        mesh.material.transparent = true;
+        mesh.material.opacity = 0.08;
+        mesh.userData.searchScaleTarget = 0.85;
+      }
+    });
+
+    this.edgeObjects.forEach((line) => {
+      const src = line.userData.source;
+      const tgt = line.userData.target;
+      line.material.opacity = contradictionSet.has(src) && contradictionSet.has(tgt) ? 0.9 : 0.04;
+    });
+  }
+
+  clearContradictionMode() {
+    this.nodeMeshes.forEach((mesh) => {
+      mesh.material.transparent = false;
+      mesh.material.opacity = 1;
+      mesh.userData.searchScaleTarget = 1;
+      mesh.userData.pulseUntil = 0;
+    });
     this.edgeObjects.forEach((line) => {
       line.material.opacity = 0.7;
     });
@@ -932,6 +1029,11 @@ class KnowledgeGraph3D {
         const eased = 1 - Math.pow(1 - progress, 3);
         mesh.scale.setScalar(Math.max(0.01, eased));
         if (progress >= 1) mesh.userData.spawnedAt = 0;
+      } else if (mesh.userData.searchScaleTarget !== undefined) {
+        const target = mesh.userData.searchScaleTarget;
+        const current = mesh.scale.x;
+        const next = current + (target - current) * 0.12;
+        mesh.scale.setScalar(Math.abs(next - target) < 0.001 ? target : next);
       }
 
       if (mesh.userData.pulseUntil > now) {
@@ -1149,11 +1251,12 @@ function closeDrawer() {
 }
 
 function switchDrawerTab(tab) {
-  const isInspector = tab === "inspector";
-  dom.drawerTabInspector.classList.toggle("active", isInspector);
-  dom.drawerTabEvents.classList.toggle("active", !isInspector);
-  dom.drawerInspectorSection.classList.toggle("hidden", !isInspector);
-  dom.drawerEventsSection.classList.toggle("hidden", isInspector);
+  dom.drawerTabInspector.classList.toggle("active", tab === "inspector");
+  dom.drawerTabEvents.classList.toggle("active", tab === "events");
+  dom.drawerTabPipeline.classList.toggle("active", tab === "pipeline");
+  dom.drawerInspectorSection.classList.toggle("hidden", tab !== "inspector");
+  dom.drawerEventsSection.classList.toggle("hidden", tab !== "events");
+  dom.drawerPipelineSection.classList.toggle("hidden", tab !== "pipeline");
 }
 
 function showInspector(node) {
@@ -1165,25 +1268,206 @@ function showInspector(node) {
   }
 
   openDrawer("inspector");
+  dom.inspectorBody.classList.remove("empty");
 
-  const connections = (node.connected_to || []).map((targetId, index) => {
-    const relation = node.relationship_types?.[index] || "related";
-    return `<li>${escapeHtml(targetId)} <em>(${escapeHtml(relation)})</em></li>`;
+  const nodeType  = node.node_type || "raw";
+  const conf      = Number(node.confidence ?? 1);
+  const confPct   = Math.round(conf * 100);
+  const confColor = conf >= 0.75 ? "var(--accent-green)"
+                  : conf >= 0.45 ? "var(--accent-amber)"
+                  : "var(--accent-red)";
+
+  const createdAt = node.created_at
+    ? new Date(node.created_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+    : "—";
+
+  const touchedAgents = Array.from(appState.nodeTouchedBy.get(node.id) || []);
+  const agentChips = touchedAgents.map(
+    (agent) => `<span class="insp-agent-chip ${escapeHtml(agent)}">${escapeHtml(agent)}</span>`
+  );
+
+  const connectionItems = (node.connected_to || []).map((targetId, i) => {
+    const rel         = (node.relationship_types?.[i] || "related").replace(/_/g, "_");
+    const targetNode  = appState.nodesById.get(targetId);
+    const label       = targetNode ? escapeHtml(targetNode.concept) : escapeHtml(targetId.slice(0, 16) + "…");
+    return `
+      <div class="insp-conn-item">
+        <span class="insp-conn-concept">${label}</span>
+        <span class="insp-rel-badge ${escapeHtml(rel)}">${escapeHtml(rel)}</span>
+      </div>`;
   });
 
-  dom.inspectorBody.classList.remove("empty");
   dom.inspectorBody.innerHTML = `
-    <div class="inspector-field"><strong>ID</strong><span>${escapeHtml(node.id)}</span></div>
-    <div class="inspector-field"><strong>Concept</strong><span>${escapeHtml(node.concept || "-")}</span></div>
-    <div class="inspector-field"><strong>Summary</strong><span>${escapeHtml(node.summary || "-")}</span></div>
-    <div class="inspector-field"><strong>Type / Confidence</strong><span>${escapeHtml(node.node_type || "raw")} / ${Number(node.confidence ?? 1).toFixed(2)}</span></div>
-    <div class="inspector-field"><strong>Source</strong><span>${escapeHtml(node.source || "-")}</span></div>
-    <div class="inspector-field"><strong>Times Retrieved</strong><span>${Number(node.times_retrieved ?? 0)}</span></div>
-    <div class="inspector-field">
-      <strong>Connections</strong>
-      ${connections.length ? `<ul class="connections-list">${connections.join("")}</ul>` : "<span>None</span>"}
+    <div class="insp-header">
+      <span class="insp-type-dot ${escapeHtml(nodeType)}"></span>
+      <div class="insp-title-group">
+        <div class="insp-concept">${escapeHtml(node.concept || "Untitled Node")}</div>
+        <span class="insp-type-badge ${escapeHtml(nodeType)}">${escapeHtml(nodeType)}</span>
+      </div>
+    </div>
+
+    <div class="insp-section">
+      <span class="insp-label">Confidence</span>
+      <div class="insp-confidence-wrap">
+        <div class="insp-confidence-bar">
+          <div class="insp-confidence-fill" style="width:${confPct}%; background:${confColor};"></div>
+        </div>
+        <span class="insp-confidence-val" style="color:${confColor};">${confPct}%</span>
+      </div>
+    </div>
+
+    <div class="insp-section">
+      <span class="insp-label">Summary</span>
+      <p class="insp-summary">${escapeHtml(node.summary || "No summary available.")}</p>
+    </div>
+
+    <div class="insp-section">
+      <span class="insp-label">Source</span>
+      <div class="insp-source">
+        <span>📄</span>
+        <span>${escapeHtml(node.source || "—")}</span>
+      </div>
+    </div>
+
+    ${agentChips.length ? `
+    <div class="insp-section">
+      <span class="insp-label">Touched By</span>
+      <div class="insp-agent-chips">${agentChips.join("")}</div>
+    </div>` : ""}
+
+    <div class="insp-section">
+      <span class="insp-label">Stats</span>
+      <div class="insp-stats-row">
+        <div class="insp-stat-chip">Retrieved <strong>${Number(node.times_retrieved ?? 0)}</strong>×</div>
+        <div class="insp-stat-chip">Created <strong>${createdAt}</strong></div>
+        <div class="insp-stat-chip">ID <strong>${escapeHtml(node.id.slice(0, 8))}…</strong></div>
+      </div>
+    </div>
+
+    ${connectionItems.length ? `
+    <div class="insp-section">
+      <span class="insp-label">Connections (${connectionItems.length})</span>
+      <div class="insp-connections">${connectionItems.join("")}</div>
+    </div>` : ""}
+
+    <div class="insp-actions">
+      <button class="insp-action-btn focus" data-node-id="${escapeHtml(node.id)}">🎯 Focus in Graph</button>
+      <button class="insp-action-btn clear">✕ Clear</button>
     </div>
   `;
+
+  dom.inspectorBody.querySelector(".insp-action-btn.focus")
+    ?.addEventListener("click", (e) => {
+      graph.focusNode(e.currentTarget.dataset.nodeId);
+    });
+
+  dom.inspectorBody.querySelector(".insp-action-btn.clear")
+    ?.addEventListener("click", () => showInspector(null));
+}
+
+const PIPELINE_AGENT_INITIALS = {
+  librarian:   "L",
+  philosopher: "P",
+  critic:      "C",
+  synthesizer: "S",
+  scholar:     "Q",
+  system:      "·",
+};
+
+function addPipelineStep(agent, label, detail = null, confidence = null) {
+  if (!dom.pipelineTimeline) return;
+
+  const isEmpty = dom.pipelineTimeline.querySelector(".pipeline-empty");
+  if (isEmpty) isEmpty.remove();
+
+  const step = document.createElement("div");
+  step.className = "pipeline-step";
+
+  const initial = PIPELINE_AGENT_INITIALS[agent] || "·";
+  const now = new Date().toLocaleTimeString();
+
+  let detailHtml = "";
+  if (detail) {
+    detailHtml = `<div class="pipeline-step-detail">${escapeHtml(detail)}</div>`;
+  }
+
+  let confHtml = "";
+  if (confidence !== null) {
+    const pct = Math.round(confidence * 100);
+    confHtml = `
+      <div class="pipeline-step-confidence">
+        <span>${pct}% confidence</span>
+        <div class="pipeline-step-conf-bar">
+          <div class="pipeline-step-conf-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+  }
+
+  step.innerHTML = `
+    <div class="pipeline-step-icon ${escapeHtml(agent)}">${initial}</div>
+    <div class="pipeline-step-head">
+      <span class="pipeline-step-agent">${escapeHtml(agent)}</span>
+      <span class="pipeline-step-time">${now}</span>
+    </div>
+    <div class="pipeline-step-label">${escapeHtml(label)}</div>
+    ${detailHtml}
+    ${confHtml}
+  `;
+
+  dom.pipelineTimeline.appendChild(step);
+  dom.pipelineTimeline.scrollTop = dom.pipelineTimeline.scrollHeight;
+}
+
+function clearPipelineTimeline() {
+  dom.pipelineTimeline.innerHTML = '<p class="pipeline-empty">Pipeline steps will appear here during ingestion.</p>';
+}
+
+function renderContradictionPanel() {
+  if (!appState.contradictionPairs.length) {
+    dom.contradictionList.innerHTML = '<p style="color:var(--text-3);font-size:0.82rem;padding:8px 0;">No contradictions recorded yet.</p>';
+    return;
+  }
+
+  dom.contradictionList.innerHTML = appState.contradictionPairs.map((pair) => {
+    const nodeA = appState.nodesById.get(pair.nodeA);
+    const resolutionHtml = pair.resolution
+      ? `<div class="contradiction-resolution">
+           <div class="contradiction-resolution-label">Synthesizer Resolution</div>
+           <div class="contradiction-resolution-text">${escapeHtml(pair.resolution)}</div>
+         </div>`
+      : "";
+
+    return `
+      <div class="contradiction-pair">
+        <div class="contradiction-side side-a">
+          <div class="contradiction-source">${escapeHtml(nodeA?.source || "Source A")}</div>
+          <div class="contradiction-concept">${escapeHtml(nodeA?.concept || pair.nodeA.slice(0, 16))}</div>
+          <div class="contradiction-summary">${escapeHtml(nodeA?.summary || "—")}</div>
+        </div>
+        <div class="contradiction-vs">VS</div>
+        <div class="contradiction-side side-b">
+          <div class="contradiction-source">${escapeHtml(pair.newSource || "Source B")}</div>
+          <div class="contradiction-concept">${escapeHtml(pair.newConcept || "Conflicting claim")}</div>
+          <div class="contradiction-summary">${escapeHtml(pair.reason || "—")}</div>
+        </div>
+        ${resolutionHtml}
+      </div>`;
+  }).join("");
+}
+
+function toggleContradictionMode() {
+  appState.contradictionMode = !appState.contradictionMode;
+  document.getElementById("graphSection").classList.toggle("contradiction-mode-active", appState.contradictionMode);
+
+  if (appState.contradictionMode) {
+    const pairIds = appState.contradictionPairs.map((p) => [p.nodeA, p.nodeB].filter(Boolean));
+    graph.setContradictionMode(pairIds);
+    renderContradictionPanel();
+    dom.contradictionPanel.classList.remove("hidden");
+  } else {
+    graph.clearContradictionMode();
+    dom.contradictionPanel.classList.add("hidden");
+  }
 }
 
 async function loadGraphData() {
@@ -1432,6 +1716,7 @@ async function resetGraph() {
     await apiRequest("/graph/reset", { method: "DELETE" });
     appState.nodesById.clear();
     appState.edges = [];
+    appState.nodeTouchedBy.clear();
     graph.clearGraph();
     showInspector(null);
     renderAnswer("Knowledge graph has been reset.", []);
@@ -1479,6 +1764,7 @@ function handleSocketEvent(event) {
     case "agent_start":
       dom.ingestState.textContent = data.label || data.agent || "Running";
       addEventLog(eventType, `${data.label || "Agent started"}`, timestamp);
+      addPipelineStep(data.agent || "system", data.label || "Agent started");
       break;
 
     case "concept_extracted": {
@@ -1496,7 +1782,13 @@ function handleSocketEvent(event) {
       };
       appState.nodesById.set(node.id, node);
       graph.addOrUpdateNode(node);
+      markNodeTouched(node.id, "librarian");
       addEventLog(eventType, `Extracted concept: ${data.concept}`, timestamp);
+      addPipelineStep(
+        "librarian",
+        `Concept: ${data.concept}`,
+        data.is_new ? `New — ${data.overlap_count ?? 0} similar nodes found` : `Overlap — ${data.overlap_count ?? 0} similar nodes`
+      );
       break;
     }
 
@@ -1506,10 +1798,17 @@ function handleSocketEvent(event) {
         target: data.to,
         type: data.type || "related",
       });
+      markNodeTouched(data.from, "philosopher");
+      markNodeTouched(data.to, "philosopher");
       addEventLog(
         eventType,
         `Connection ${data.from?.slice(0, 8)} -> ${data.to?.slice(0, 8)} (${data.type})`,
         timestamp
+      );
+      addPipelineStep(
+        "philosopher",
+        `Relationship: ${data.type || "related"}`,
+        data.explanation || null
       );
       break;
 
@@ -1518,34 +1817,59 @@ function handleSocketEvent(event) {
         nodeA: data.node_a,
         nodeB: data.node_b,
       };
+      appState.contradictionPairs.push({
+        nodeA: data.node_a,
+        nodeB: data.node_b,
+        newConcept: data.new_concept || "",
+        newSource: data.new_source || "",
+        reason: data.reason || "",
+        resolution: null,
+      });
       graph.highlightContradiction(data.node_a, data.node_b);
+      markNodeTouched(data.node_a, "critic");
+      markNodeTouched(data.node_b, "critic");
       addEventLog(eventType, data.reason || "Contradiction detected", timestamp);
+      addPipelineStep("critic", "Contradiction detected", data.reason || null);
       break;
 
     case "resolution_start": {
       const loopValue = Number(data.loop || 0);
       dom.loopBadge.textContent = `Loop: ${loopValue}`;
       addEventLog(eventType, `Resolution loop ${loopValue}`, timestamp);
+      addPipelineStep("synthesizer", `Resolution loop ${loopValue}`);
       break;
     }
 
-    case "resolution_done":
+    case "resolution_done": {
       if (appState.lastContradiction) {
         graph.animateResolution(
           appState.lastContradiction.nodeA,
           appState.lastContradiction.nodeB
         );
+        markNodeTouched(appState.lastContradiction.nodeA, "synthesizer");
+        markNodeTouched(appState.lastContradiction.nodeB, "synthesizer");
+        const lastPair = appState.contradictionPairs[appState.contradictionPairs.length - 1];
+        if (lastPair) lastPair.resolution = data.synthesis || null;
       }
+      const conf = Number(data.confidence || 0);
       addEventLog(
         eventType,
-        `Resolution confidence ${(Number(data.confidence || 0) * 100).toFixed(1)}%`,
+        `Resolution confidence ${(conf * 100).toFixed(1)}%`,
         timestamp
       );
+      addPipelineStep(
+        "synthesizer",
+        `Resolved — ${(conf * 100).toFixed(0)}% confidence`,
+        data.synthesis || null,
+        conf
+      );
       break;
+    }
 
     case "loop_back":
       dom.loopBadge.textContent = `Loop: ${data.loop_count || 0}`;
       addEventLog(eventType, data.reason || "Looping for re-evaluation", timestamp);
+      addPipelineStep("synthesizer", "Low confidence — re-evaluating", data.reason || null);
       break;
 
     case "node_stored":
@@ -1564,12 +1888,18 @@ function handleSocketEvent(event) {
         `Ingestion complete (${data.new_nodes || 0} nodes, ${data.edges || 0} edges)`,
         timestamp
       );
+      addPipelineStep(
+        "system",
+        `Ingestion complete`,
+        `${data.new_nodes || 0} nodes · ${data.edges || 0} edges`
+      );
       reloadGraphDebounced();
       break;
 
     case "scholar_answer":
       renderAnswer(data.answer || "", data.sources || []);
       addEventLog(eventType, "Scholar produced an answer", timestamp);
+      addPipelineStep("scholar", "Answer generated", null);
       break;
 
     case "error":
@@ -1635,13 +1965,29 @@ function bindEvents() {
   dom.zoomInBtn.addEventListener("click", () => graph.zoom(0.9));
   dom.zoomOutBtn.addEventListener("click", () => graph.zoom(1.1));
 
-  dom.nodeSearchBtn.addEventListener("click", () => {
-    const found = graph.searchAndFocus(dom.nodeSearchInput.value || "");
-    if (found) {
-      showInspector(found);
-      addEventLog("graph", `Focused node: ${found.concept}`);
-    } else {
-      addEventLog("graph", "No node matched the search term");
+  function runNodeSearch() {
+    const term = dom.nodeSearchInput.value || "";
+    if (!term.trim()) {
+      graph.clearSearchHighlight();
+      return;
+    }
+    const { matches, count } = graph.searchAndFocus(term);
+    if (count === 0) {
+      addEventLog("graph", `Search: no nodes matched '${term}'`);
+      return;
+    }
+    const matchIds = matches.map((n) => n.id);
+    graph.applySearchHighlight(matchIds);
+    graph.fitToNodes(matchIds);
+    addEventLog("graph", `Search: ${count} node${count === 1 ? "" : "s"} matched '${term}'`);
+    if (count === 1) showInspector(matches[0]);
+  }
+
+  dom.nodeSearchBtn.addEventListener("click", runNodeSearch);
+  dom.nodeSearchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      runNodeSearch();
     }
   });
 
@@ -1661,10 +2007,24 @@ function bindEvents() {
 
   dom.drawerTabInspector.addEventListener("click", () => switchDrawerTab("inspector"));
   dom.drawerTabEvents.addEventListener("click", () => switchDrawerTab("events"));
+  dom.drawerTabPipeline.addEventListener("click", () => switchDrawerTab("pipeline"));
 
   dom.openEventsBtn.addEventListener("click", () => openDrawer("events"));
+  dom.openPipelineBtn.addEventListener("click", () => openDrawer("pipeline"));
+
+  dom.contradictionModeBtn.addEventListener("click", toggleContradictionMode);
+  dom.closeContradictionPanelBtn.addEventListener("click", () => {
+    appState.contradictionMode = false;
+    document.getElementById("graphSection").classList.remove("contradiction-mode-active");
+    graph.clearContradictionMode();
+    dom.contradictionPanel.classList.add("hidden");
+  });
+
+  dom.clearPipelineBtn.addEventListener("click", clearPipelineTimeline);
   dom.clearHighlightBtn.addEventListener("click", () => {
     graph.clearQueryHighlight();
+    graph.clearSearchHighlight();
+    dom.nodeSearchInput.value = "";
     graph.fitToAllNodes();
   });
 
@@ -1698,6 +2058,7 @@ async function initialize() {
   bindEvents();
   updateUploadProgress(0, "Select a file or paste text below.");
   showInspector(null);
+  clearPipelineTimeline();
 
   await Promise.all([
     loadGraphData(),
