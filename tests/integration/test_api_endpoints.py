@@ -7,8 +7,14 @@ from fastapi.testclient import TestClient
 import backend.main as main
 
 
+class FakeChromaClient:
+    def heartbeat(self):
+        return 1
+
+
 class FakeStore:
     def __init__(self):
+        self.client = FakeChromaClient()
         self.nodes = [
             {
                 "id": "node-1",
@@ -155,6 +161,27 @@ def test_graph_endpoints(monkeypatch):
     assert stats_response.json()["node_count"] == 2
 
 
+def test_export_returns_nodes_and_edges(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/graph/export")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "nodes" in payload
+    assert "edges" in payload
+    assert payload["node_count"] == 2
+    assert payload["edge_count"] >= 1
+    assert "exported_at" in payload
+
+
+def test_export_content_disposition_header(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/graph/export")
+
+    assert "attachment" in response.headers.get("content-disposition", "")
+    assert "echograph-export.json" in response.headers.get("content-disposition", "")
+
+
 def test_reset_endpoint(monkeypatch):
     with build_client(monkeypatch) as client:
         response = client.delete("/graph/reset")
@@ -245,6 +272,31 @@ def test_invalid_inputs(monkeypatch):
 
     # Pydantic validation should reject empty query strings.
     assert response.status_code == 422
+
+
+def test_health_check_reports_healthy_when_store_reachable(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/health")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "healthy"
+    assert payload["knowledge_store"] == "connected"
+    assert payload["graphs"] == "compiled"
+
+
+def test_health_check_reports_degraded_when_store_unreachable(monkeypatch):
+    with build_client(monkeypatch) as client:
+        def broken_heartbeat():
+            raise RuntimeError("chromadb down")
+
+        main.knowledge_store.client.heartbeat = broken_heartbeat
+        response = client.get("/health")
+
+    assert response.status_code == 503
+    payload = response.json()
+    assert payload["status"] == "degraded"
+    assert payload["knowledge_store"] == "unreachable"
 
 
 def test_response_includes_request_id_header(monkeypatch):

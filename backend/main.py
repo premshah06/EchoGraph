@@ -480,13 +480,29 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
-    return {
-        "status": "healthy",
-        "knowledge_store": "connected",
-        "graphs": "compiled",
-        "demo_mode": demo_mode_enabled,
-    }
+    """Liveness + dependency health check."""
+    store_status = "unavailable"
+    if knowledge_store is not None:
+        try:
+            await run_in_threadpool(knowledge_store.client.heartbeat)
+            store_status = "connected"
+        except Exception:
+            logger.exception("Health check: ChromaDB heartbeat failed")
+            store_status = "unreachable"
+
+    graphs_status = "compiled" if (ingestion_graph is not None and query_graph is not None) else "not_compiled"
+
+    overall_ok = store_status == "connected" and graphs_status == "compiled"
+
+    return JSONResponse(
+        status_code=200 if overall_ok else 503,
+        content={
+            "status": "healthy" if overall_ok else "degraded",
+            "knowledge_store": store_status,
+            "graphs": graphs_status,
+            "demo_mode": demo_mode_enabled,
+        },
+    )
 
 
 @app.post("/ingest/document", response_model=IngestResponse, dependencies=[Depends(require_api_key)])
@@ -695,6 +711,43 @@ async def get_graph_stats():
     except Exception as exc:
         logger.exception("Error getting graph stats")
         raise HTTPException(status_code=500, detail=f"Failed to retrieve graph stats: {exc}")
+
+
+@app.get("/graph/export")
+async def export_graph():
+    """Export the full knowledge graph as a downloadable JSON file."""
+    try:
+        from datetime import datetime, timezone
+        nodes = knowledge_store.get_all_nodes()
+        edges = []
+
+        for node in nodes:
+            connected_to = node.get("connected_to", [])
+            relationship_types = node.get("relationship_types", [])
+            for idx, target_id in enumerate(connected_to):
+                if not target_id:
+                    continue
+                edges.append({
+                    "source": node["id"],
+                    "target": target_id,
+                    "relationship": relationship_types[idx] if idx < len(relationship_types) else "related",
+                })
+
+        payload = {
+            "exported_at": datetime.now(timezone.utc).isoformat(),
+            "node_count": len(nodes),
+            "edge_count": len(edges),
+            "nodes": nodes,
+            "edges": edges,
+        }
+
+        return JSONResponse(
+            content=payload,
+            headers={"Content-Disposition": 'attachment; filename="echograph-export.json"'},
+        )
+    except Exception as exc:
+        logger.exception("Error exporting graph")
+        raise HTTPException(status_code=500, detail=f"Failed to export graph: {exc}")
 
 
 @app.delete("/graph/reset", dependencies=[Depends(require_api_key)])

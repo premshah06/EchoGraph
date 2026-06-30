@@ -19,6 +19,8 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Ingest history panel — tracks past ingestion sessions with source, duration, and resulting node/edge counts
 - Demo mode with pre-seeded sample graph when OpenAI key is unavailable
 - Structured JSON logging with per-request correlation IDs (`X-Request-ID`), propagated through agent pipeline execution
+- Real `/health` checks — pings ChromaDB and verifies the agent graphs compiled, returning 503 on a degraded dependency instead of a hardcoded "healthy"
+- Graph JSON export — one-click download of the full knowledge graph (nodes + edges + metadata) via `GET /graph/export` with `Content-Disposition` attachment header
 
 ![EchoGraph Architecture](arch_image.png)
 

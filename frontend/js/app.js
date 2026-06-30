@@ -106,6 +106,7 @@ const dom = {
   clearHighlightBtn: document.getElementById("clearHighlightBtn"),
   contradictionModeBtn: document.getElementById("contradictionModeBtn"),
   tracePathBtn: document.getElementById("tracePathBtn"),
+  exportGraphBtn: document.getElementById("exportGraphBtn"),
   contradictionPanel: document.getElementById("contradictionPanel"),
   contradictionList: document.getElementById("contradictionList"),
   closeContradictionPanelBtn: document.getElementById("closeContradictionPanelBtn"),
@@ -1545,6 +1546,29 @@ function toggleContradictionMode() {
   }
 }
 
+async function exportGraph() {
+  dom.exportGraphBtn.disabled = true;
+  dom.exportGraphBtn.textContent = "⏳ Exporting…";
+  try {
+    const response = await fetch("/graph/export");
+    if (!response.ok) throw new Error(`Export failed: ${response.status}`);
+    const blob = await response.blob();
+    const data = JSON.parse(await blob.text());
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `echograph-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    addEventLog("export", `Graph exported — ${data.node_count} nodes, ${data.edge_count} edges`);
+  } catch (err) {
+    addEventLog("export", `Export failed: ${err.message}`);
+  } finally {
+    dom.exportGraphBtn.disabled = false;
+    dom.exportGraphBtn.textContent = "↓ Export";
+  }
+}
+
 function togglePathTraceMode() {
   appState.pathTraceMode = !appState.pathTraceMode;
   appState.pathTraceFirstNode = null;
@@ -2133,6 +2157,7 @@ function bindEvents() {
 
   dom.contradictionModeBtn.addEventListener("click", toggleContradictionMode);
   dom.tracePathBtn.addEventListener("click", togglePathTraceMode);
+  dom.exportGraphBtn.addEventListener("click", exportGraph);
   dom.closeContradictionPanelBtn.addEventListener("click", () => {
     appState.contradictionMode = false;
     document.getElementById("graphSection").classList.remove("contradiction-mode-active");
