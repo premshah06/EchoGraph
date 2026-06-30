@@ -1372,6 +1372,51 @@ textarea {
   flex-wrap: wrap;
 }
 
+.query-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.query-history-empty {
+  color: var(--text-3);
+  font-size: 0.85rem;
+  padding: 12px 0;
+}
+
+.query-history-item {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-amber);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.query-history-item:hover {
+  background: var(--surface-3);
+}
+
+.query-history-q {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.query-history-meta {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-3);
+}
+
 .log-item span { color: var(--text-1); }
 .log-item strong { color: #fcd34d; font-weight: 600; }
 

@@ -20,6 +20,8 @@ import {
   finalizeIngestHistoryEntry as finalizeIngestHistoryEntryUtil,
   renderIngestHistoryList,
   findShortestPath,
+  createQueryHistoryEntry,
+  renderQueryHistoryList,
 } from "./testable_utils.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -74,6 +76,7 @@ const dom = {
   contradictionCount: document.getElementById("contradictionCount"),
   synthesizedCount: document.getElementById("synthesizedCount"),
   clearIngestHistoryBtn: document.getElementById("clearIngestHistoryBtn"),
+  clearQueryHistoryBtn: document.getElementById("clearQueryHistoryBtn"),
 
   graphContainer: document.getElementById("graph-container"),
   graphTooltip: document.getElementById("graphTooltip"),
@@ -134,6 +137,7 @@ const appState = {
   activeIngestEntry: null,
   pathTraceMode: false,
   pathTraceFirstNode: null,
+  queryHistory: loadQueryHistory(),
 };
 
 function markNodeTouched(nodeId, agent) {
@@ -165,6 +169,52 @@ function renderIngestHistory() {
   const list = document.getElementById("ingestHistoryList");
   if (!list) return;
   list.innerHTML = renderIngestHistoryList(appState.ingestHistory);
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll(".sidebar-tab").forEach((t) => t.classList.remove("active"));
+  document.querySelectorAll(".sidebar-pane").forEach((p) => p.classList.add("hidden"));
+  const tab = document.querySelector(`.sidebar-tab[data-tab="${tabName}"]`);
+  const pane = document.querySelector(`.sidebar-pane[data-pane="${tabName}"]`);
+  if (tab) tab.classList.add("active");
+  if (pane) pane.classList.remove("hidden");
+}
+
+const QUERY_HISTORY_KEY = "echograph_query_history";
+const QUERY_HISTORY_MAX = 50;
+
+function loadQueryHistory() {
+  try {
+    const raw = localStorage.getItem(QUERY_HISTORY_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw).map((e) => ({ ...e, timestamp: new Date(e.timestamp) }));
+  } catch {
+    return [];
+  }
+}
+
+function saveQueryHistory() {
+  try {
+    localStorage.setItem(QUERY_HISTORY_KEY, JSON.stringify(appState.queryHistory));
+  } catch {
+    // localStorage quota exceeded — silently drop
+  }
+}
+
+function addQueryHistoryEntry(query, answer, sources) {
+  const entry = createQueryHistoryEntry(query, answer, sources);
+  appState.queryHistory.unshift(entry);
+  if (appState.queryHistory.length > QUERY_HISTORY_MAX) {
+    appState.queryHistory = appState.queryHistory.slice(0, QUERY_HISTORY_MAX);
+  }
+  saveQueryHistory();
+  renderQueryHistory();
+}
+
+function renderQueryHistory() {
+  const list = document.getElementById("queryHistoryList");
+  if (!list) return;
+  list.innerHTML = renderQueryHistoryList(appState.queryHistory);
 }
 
 class SessionSocket {
@@ -1822,6 +1872,7 @@ async function queryKnowledge() {
     });
 
     renderAnswer(result.answer, result.sources);
+    addQueryHistoryEntry(query, result.answer, result.sources);
     addEventLog("query", `Scholar used ${result.sources.length} sources`);
 
     for (const event of result.agent_events || []) {
@@ -2103,6 +2154,23 @@ function bindEvents() {
     renderIngestHistory();
   });
 
+  dom.clearQueryHistoryBtn.addEventListener("click", () => {
+    appState.queryHistory = [];
+    saveQueryHistory();
+    renderQueryHistory();
+  });
+
+  document.getElementById("queryHistoryList").addEventListener("click", (e) => {
+    const item = e.target.closest(".query-history-item");
+    if (!item) return;
+    const entryId = Number(item.dataset.queryId);
+    const entry = appState.queryHistory.find((h) => h.id === entryId);
+    if (!entry) return;
+    dom.queryInput.value = entry.query;
+    renderAnswer(entry.answer, entry.sources);
+    switchTab("query");
+  });
+
   dom.resetViewBtn.addEventListener("click", () => graph.resetView());
   dom.physicsToggleBtn.addEventListener("click", togglePhysics);
   dom.zoomInBtn.addEventListener("click", () => graph.zoom(0.9));
@@ -2218,6 +2286,7 @@ async function initialize() {
   ]);
 
   ensureSession();
+  renderQueryHistory();
   addEventLog("system", "Application initialized");
 
   window.setInterval(() => {

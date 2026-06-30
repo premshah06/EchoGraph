@@ -10,6 +10,8 @@ import {
     finalizeIngestHistoryEntry,
     renderIngestHistoryList,
     findShortestPath,
+    createQueryHistoryEntry,
+    renderQueryHistoryList,
 } from "../../frontend/js/testable_utils.js";
 
 test("escapeHtml sanitizes special characters", () => {
@@ -187,4 +189,54 @@ test("findShortestPath returns empty array for unknown nodes", () => {
 test("findShortestPath returns empty array for missing start or end id", () => {
     assert.deepEqual(findShortestPath([{ source: "a", target: "b" }], "", "b"), []);
     assert.deepEqual(findShortestPath([{ source: "a", target: "b" }], "a", ""), []);
+});
+
+test("createQueryHistoryEntry builds entry with correct fields", () => {
+    const now = new Date("2026-06-30T10:00:00Z");
+    const entry = createQueryHistoryEntry("What is X?", "X is Y.", ["node-1"], now);
+
+    assert.equal(entry.query, "What is X?");
+    assert.equal(entry.answer, "X is Y.");
+    assert.deepEqual(entry.sources, ["node-1"]);
+    assert.equal(entry.timestamp, now);
+    assert.equal(entry.id, now.getTime());
+});
+
+test("createQueryHistoryEntry defaults sources to empty array", () => {
+    const entry = createQueryHistoryEntry("Q?", "A.");
+    assert.deepEqual(entry.sources, []);
+});
+
+test("createQueryHistoryEntry handles empty query gracefully", () => {
+    const entry = createQueryHistoryEntry("", "answer");
+    assert.equal(entry.query, "");
+});
+
+test("renderQueryHistoryList shows empty state when no entries", () => {
+    assert.match(renderQueryHistoryList([]), /No queries yet\./);
+    assert.match(renderQueryHistoryList(undefined), /No queries yet\./);
+});
+
+test("renderQueryHistoryList renders a query entry with text and source count", () => {
+    const entry = createQueryHistoryEntry("What is A?", "A is B.", ["node-1", "node-2"], new Date("2026-06-30T10:00:00Z"));
+    const html = renderQueryHistoryList([entry]);
+
+    assert.match(html, /What is A\?/);
+    assert.match(html, /2 sources/);
+    assert.match(html, /query-history-item/);
+});
+
+test("renderQueryHistoryList escapes the query text", () => {
+    const entry = createQueryHistoryEntry('<script>alert(1)</script>', "safe answer", [], new Date());
+    const html = renderQueryHistoryList([entry]);
+
+    assert.doesNotMatch(html, /<script>/);
+    assert.match(html, /&lt;script&gt;/);
+});
+
+test("renderQueryHistoryList shows singular 'source' for 1 result", () => {
+    const entry = createQueryHistoryEntry("Q?", "A.", ["node-1"], new Date());
+    const html = renderQueryHistoryList([entry]);
+
+    assert.match(html, /1 source[^s]/);
 });

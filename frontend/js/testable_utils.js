@@ -149,6 +149,40 @@ export function renderIngestHistoryList(entries) {
         .join("");
 }
 
+export function createQueryHistoryEntry(query, answer, sources = [], now = new Date()) {
+    return {
+        id: now.getTime(),
+        query: query || "",
+        answer: answer || "",
+        sources: Array.isArray(sources) ? sources : [],
+        timestamp: now,
+    };
+}
+
+export function renderQueryHistoryList(entries) {
+    if (!entries || !entries.length) {
+        return '<p class="query-history-empty">No queries yet.</p>';
+    }
+
+    return entries
+        .map((entry) => {
+            const time = entry.timestamp instanceof Date
+                ? entry.timestamp.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" })
+                : new Date(entry.timestamp).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+            const sourceCount = entry.sources.length;
+
+            return `
+      <div class="query-history-item" data-query-id="${entry.id}">
+        <div class="query-history-q">${escapeHtml(entry.query)}</div>
+        <div class="query-history-meta">
+          <span>${time}</span>
+          <span>${sourceCount} source${sourceCount !== 1 ? "s" : ""}</span>
+        </div>
+      </div>`;
+        })
+        .join("");
+}
+
 export function renderAnswerTemplate(answer, sources = []) {
     const safeAnswer = escapeHtml(answer)
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")

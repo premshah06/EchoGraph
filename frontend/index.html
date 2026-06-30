@@ -15,7 +15,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="css/style.css?v=14" />
+  <link rel="stylesheet" href="css/style.css?v=15" />
 
   <script type="importmap">
     {
@@ -84,6 +84,7 @@
           <button class="sidebar-tab" data-tab="query" role="tab" type="button">Query</button>
           <button class="sidebar-tab" data-tab="stats" role="tab" type="button">Stats</button>
           <button class="sidebar-tab" data-tab="history" role="tab" type="button">History</button>
+          <button class="sidebar-tab" data-tab="queries" role="tab" type="button">Queries</button>
         </div>
 
         <!-- Ingest pane -->
@@ -168,6 +169,18 @@
               <button id="refreshStatsBtn" class="btn ghost" type="button">Refresh</button>
               <button id="resetGraphBtn" class="btn danger" type="button">Reset Graph</button>
             </div>
+          </section>
+        </div>
+
+        <!-- Query History pane -->
+        <div class="sidebar-pane hidden" data-pane="queries">
+          <section class="card">
+            <div class="card-head">
+              <h2>Query History</h2>
+              <button id="clearQueryHistoryBtn" class="btn ghost small" type="button">Clear</button>
+            </div>
+            <p class="hint">Click any entry to restore the query and answer.</p>
+            <div id="queryHistoryList" class="query-history-list"></div>
           </section>
         </div>
 
@@ -318,6 +331,6 @@
     }
   </script>
 
-  <script type="module" src="js/app.js?v=13"></script>
+  <script type="module" src="js/app.js?v=14"></script>
 </body>
 </html>

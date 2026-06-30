@@ -21,6 +21,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Structured JSON logging with per-request correlation IDs (`X-Request-ID`), propagated through agent pipeline execution
 - Real `/health` checks — pings ChromaDB and verifies the agent graphs compiled, returning 503 on a degraded dependency instead of a hardcoded "healthy"
 - Graph JSON export — one-click download of the full knowledge graph (nodes + edges + metadata) via `GET /graph/export` with `Content-Disposition` attachment header
+- Query history panel — persisted in localStorage, click any past query to restore its question and answer in the Query tab
 
 ![EchoGraph Architecture](arch_image.png)
 
