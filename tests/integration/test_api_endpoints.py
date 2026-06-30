@@ -163,6 +163,82 @@ def test_reset_endpoint(monkeypatch):
     assert response.json()["status"] == "success"
 
 
+def test_protected_endpoints_open_when_no_api_keys_configured(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "")
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/document",
+            json={"content": "hello", "source_label": "doc.txt"},
+        )
+
+    assert response.status_code == 200
+
+
+def test_protected_endpoint_rejects_missing_key_when_configured(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/document",
+            json={"content": "hello", "source_label": "doc.txt"},
+        )
+
+    assert response.status_code == 401
+
+
+def test_protected_endpoint_rejects_wrong_key_when_configured(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/document",
+            json={"content": "hello", "source_label": "doc.txt"},
+            headers={"X-API-Key": "wrong-key"},
+        )
+
+    assert response.status_code == 401
+
+
+def test_protected_endpoint_accepts_correct_key_when_configured(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/document",
+            json={"content": "hello", "source_label": "doc.txt"},
+            headers={"X-API-Key": "secret-key"},
+        )
+
+    assert response.status_code == 200
+
+
+def test_query_endpoint_protected_by_api_key(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        unauthenticated = client.post("/query", json={"query": "What is A?"})
+        authenticated = client.post(
+            "/query",
+            json={"query": "What is A?"},
+            headers={"X-API-Key": "secret-key"},
+        )
+
+    assert unauthenticated.status_code == 401
+    assert authenticated.status_code == 200
+
+
+def test_reset_endpoint_protected_by_api_key(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        unauthenticated = client.delete("/graph/reset")
+        authenticated = client.delete(
+            "/graph/reset", headers={"X-API-Key": "secret-key"}
+        )
+
+    assert unauthenticated.status_code == 401
+    assert authenticated.status_code == 200
+
+
 def test_invalid_inputs(monkeypatch):
     with build_client(monkeypatch) as client:
         response = client.post("/query", json={"query": ""})

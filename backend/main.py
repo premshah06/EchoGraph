@@ -18,7 +18,7 @@ from typing import Deque, Dict, List, Optional, Set, Tuple
 
 import httpx
 from bs4 import BeautifulSoup
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -223,6 +223,20 @@ def sanitize_source_label(value: str) -> str:
     sanitized = CONTROL_CHARS_PATTERN.sub("", value or "")
     sanitized = " ".join(sanitized.split())
     return sanitized[:200] or "unknown-source"
+
+
+async def require_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
+    """Validate X-API-Key header against configured keys.
+
+    Auth is disabled (no-op) when no API_KEYS are configured, so local/demo
+    deployments keep working without extra setup.
+    """
+    configured_keys = get_settings().api_keys_set
+    if not configured_keys:
+        return
+
+    if not x_api_key or x_api_key not in configured_keys:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key")
 
 
 def build_event_emitter(session_id: str, loop: asyncio.AbstractEventLoop):
@@ -435,7 +449,7 @@ async def health_check():
     }
 
 
-@app.post("/ingest/document", response_model=IngestResponse)
+@app.post("/ingest/document", response_model=IngestResponse, dependencies=[Depends(require_api_key)])
 async def ingest_document(request: IngestRequest):
     """Ingest text content into the multi-agent graph pipeline."""
     try:
@@ -495,7 +509,7 @@ async def ingest_document(request: IngestRequest):
         raise HTTPException(status_code=500, detail=f"Failed to ingest document: {exc}")
 
 
-@app.post("/ingest/url", response_model=IngestResponse)
+@app.post("/ingest/url", response_model=IngestResponse, dependencies=[Depends(require_api_key)])
 async def ingest_url(request: URLIngestRequest):
     """Fetch and ingest web page content by URL."""
     url = str(request.url)
@@ -541,7 +555,7 @@ async def ingest_url(request: URLIngestRequest):
         raise HTTPException(status_code=500, detail=f"Failed to ingest URL: {exc}")
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query", response_model=QueryResponse, dependencies=[Depends(require_api_key)])
 async def query_knowledge(request: QueryRequest):
     """Run query graph and return grounded answer with source IDs."""
     try:
@@ -643,7 +657,7 @@ async def get_graph_stats():
         raise HTTPException(status_code=500, detail=f"Failed to retrieve graph stats: {exc}")
 
 
-@app.delete("/graph/reset")
+@app.delete("/graph/reset", dependencies=[Depends(require_api_key)])
 async def reset_graph():
     """Wipe the knowledge base."""
     try:
