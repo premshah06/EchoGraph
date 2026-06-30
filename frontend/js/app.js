@@ -69,6 +69,7 @@ const dom = {
   edgeCount: document.getElementById("edgeCount"),
   contradictionCount: document.getElementById("contradictionCount"),
   synthesizedCount: document.getElementById("synthesizedCount"),
+  clearIngestHistoryBtn: document.getElementById("clearIngestHistoryBtn"),
 
   graphContainer: document.getElementById("graph-container"),
   graphTooltip: document.getElementById("graphTooltip"),
@@ -123,6 +124,8 @@ const appState = {
   contradictionMode: false,
   contradictionPairs: [],
   nodeTouchedBy: new Map(),
+  ingestHistory: [],
+  activeIngestEntry: null,
 };
 
 function markNodeTouched(nodeId, agent) {
@@ -133,6 +136,63 @@ function markNodeTouched(nodeId, agent) {
     appState.nodeTouchedBy.set(nodeId, agents);
   }
   agents.add(agent);
+}
+
+function startIngestHistoryEntry(sourceLabel, type) {
+  const entry = {
+    id: Date.now(),
+    source: sourceLabel || "unknown",
+    type,
+    startedAt: new Date(),
+    finishedAt: null,
+    nodes: 0,
+    edges: 0,
+    status: "running",
+  };
+  appState.ingestHistory.unshift(entry);
+  appState.activeIngestEntry = entry;
+  renderIngestHistory();
+  return entry;
+}
+
+function finalizeIngestHistoryEntry(nodes, edges, status = "done") {
+  const entry = appState.activeIngestEntry;
+  if (!entry) return;
+  entry.finishedAt = new Date();
+  entry.nodes = nodes;
+  entry.edges = edges;
+  entry.status = status;
+  appState.activeIngestEntry = null;
+  renderIngestHistory();
+}
+
+function renderIngestHistory() {
+  const list = document.getElementById("ingestHistoryList");
+  if (!list) return;
+  if (!appState.ingestHistory.length) {
+    list.innerHTML = '<p class="ingest-history-empty">No ingestions yet.</p>';
+    return;
+  }
+  list.innerHTML = appState.ingestHistory.map((entry) => {
+    const started = entry.startedAt.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
+    const duration = entry.finishedAt
+      ? `${((entry.finishedAt - entry.startedAt) / 1000).toFixed(1)}s`
+      : "…";
+    const statusClass = entry.status === "done" ? "done" : entry.status === "error" ? "error" : "running";
+    const typeIcon = entry.type === "url" ? "🔗" : "📄";
+    return `
+      <div class="ingest-history-item ${statusClass}">
+        <div class="ingest-history-head">
+          <span class="ingest-history-source">${typeIcon} ${escapeHtml(entry.source)}</span>
+          <span class="ingest-history-status ${statusClass}">${entry.status}</span>
+        </div>
+        <div class="ingest-history-meta">
+          <span>${started}</span>
+          <span>${duration}</span>
+          ${entry.status !== "running" ? `<span>${entry.nodes} nodes · ${entry.edges} edges</span>` : "<span>Processing…</span>"}
+        </div>
+      </div>`;
+  }).join("");
 }
 
 class SessionSocket {
@@ -1619,6 +1679,7 @@ async function ingestDocument() {
     payload.events_session = sessionId;
 
     addEventLog("ingest", `Submitting ${payload.source_label}`);
+    startIngestHistoryEntry(payload.source_label, "document");
     await apiRequest("/ingest/document", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -1647,6 +1708,7 @@ async function ingestUrl() {
   try {
     setIngestLoading(true, "Fetching URL");
     const sessionId = ensureSession();
+    startIngestHistoryEntry(url, "url");
 
     await apiRequest("/ingest/url", {
       method: "POST",
@@ -1893,6 +1955,7 @@ function handleSocketEvent(event) {
         `Ingestion complete`,
         `${data.new_nodes || 0} nodes · ${data.edges || 0} edges`
       );
+      finalizeIngestHistoryEntry(data.new_nodes || 0, data.edges || 0, "done");
       reloadGraphDebounced();
       break;
 
@@ -1904,6 +1967,7 @@ function handleSocketEvent(event) {
 
     case "error":
       addEventLog(eventType, data.message || "Agent error", timestamp);
+      finalizeIngestHistoryEntry(0, 0, "error");
       break;
 
     case "pong":
@@ -1959,6 +2023,11 @@ function bindEvents() {
   dom.queryBtn.addEventListener("click", queryKnowledge);
   dom.refreshStatsBtn.addEventListener("click", refreshStats);
   dom.resetGraphBtn.addEventListener("click", resetGraph);
+  dom.clearIngestHistoryBtn.addEventListener("click", () => {
+    appState.ingestHistory = [];
+    appState.activeIngestEntry = null;
+    renderIngestHistory();
+  });
 
   dom.resetViewBtn.addEventListener("click", () => graph.resetView());
   dom.physicsToggleBtn.addEventListener("click", togglePhysics);
