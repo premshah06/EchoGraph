@@ -1,3 +1,36 @@
+export function findShortestPath(edges, startId, endId) {
+    if (!startId || !endId) return [];
+    if (startId === endId) return [startId];
+
+    const adjacency = new Map();
+    for (const edge of edges) {
+        if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
+        if (!adjacency.has(edge.target)) adjacency.set(edge.target, []);
+        adjacency.get(edge.source).push(edge.target);
+        adjacency.get(edge.target).push(edge.source);
+    }
+
+    if (!adjacency.has(startId) || !adjacency.has(endId)) return [];
+
+    const visited = new Set([startId]);
+    const queue = [[startId]];
+
+    while (queue.length) {
+        const path = queue.shift();
+        const node = path[path.length - 1];
+
+        if (node === endId) return path;
+
+        for (const neighbor of adjacency.get(node) || []) {
+            if (visited.has(neighbor)) continue;
+            visited.add(neighbor);
+            queue.push([...path, neighbor]);
+        }
+    }
+
+    return [];
+}
+
 export function escapeHtml(text) {
     return String(text)
         .replaceAll("&", "&amp;")

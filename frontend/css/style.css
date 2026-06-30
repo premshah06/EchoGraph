@@ -1662,6 +1662,12 @@ textarea {
   border-color: rgba(239, 68, 68, 0.35);
 }
 
+#tracePathBtn.active {
+  background: rgba(52, 211, 153, 0.18);
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
 /* ── Footer ─────────────────────────────────────────────────── */
 .site-footer {
   display: none;

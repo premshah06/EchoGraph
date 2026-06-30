@@ -10,7 +10,13 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - ChromaDB persistent semantic storage
 - Five agents: Librarian, Philosopher, Critic, Synthesizer, Scholar
 - Real-time WebSocket event stream with batching/compaction/replay
-- Responsive white/light frontend with Three.js + d3-force-3d visualization
+- Responsive warm-themed frontend with Three.js + d3-force-3d visualization
+- Search with graph focus — multi-field keyword search that highlights and camera-fits all matching nodes
+- Contradiction highlighter — dedicated toolbar mode that dims unrelated edges and shows side-by-side contradiction/resolution pairs
+- Agent pipeline visualizer — live drawer timeline of each agent's decisions during ingestion
+- Node inspector with confidence score, source, connections, and which agents touched each node
+- Node path tracing — click two nodes to highlight the shortest connecting path through the graph
+- Ingest history panel — tracks past ingestion sessions with source, duration, and resulting node/edge counts
 - Demo mode with pre-seeded sample graph when OpenAI key is unavailable
 
 ![EchoGraph Architecture](arch_image.png)

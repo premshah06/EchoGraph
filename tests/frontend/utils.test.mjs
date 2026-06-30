@@ -9,6 +9,7 @@ import {
     createIngestHistoryEntry,
     finalizeIngestHistoryEntry,
     renderIngestHistoryList,
+    findShortestPath,
 } from "../../frontend/js/testable_utils.js";
 
 test("escapeHtml sanitizes special characters", () => {
@@ -141,4 +142,49 @@ test("renderIngestHistoryList uses a link icon for url type entries", () => {
     const html = renderIngestHistoryList([entry]);
 
     assert.match(html, /\u{1F517}/u);
+});
+
+test("findShortestPath finds a direct connection", () => {
+    const edges = [{ source: "a", target: "b" }];
+    assert.deepEqual(findShortestPath(edges, "a", "b"), ["a", "b"]);
+});
+
+test("findShortestPath finds the shortest multi-hop path", () => {
+    const edges = [
+        { source: "a", target: "b" },
+        { source: "b", target: "c" },
+        { source: "a", target: "d" },
+        { source: "d", target: "c" },
+        { source: "c", target: "e" },
+    ];
+    const path = findShortestPath(edges, "a", "e");
+    assert.equal(path[0], "a");
+    assert.equal(path[path.length - 1], "e");
+    assert.equal(path.length, 4);
+});
+
+test("findShortestPath treats edges as undirected", () => {
+    const edges = [{ source: "b", target: "a" }];
+    assert.deepEqual(findShortestPath(edges, "a", "b"), ["a", "b"]);
+});
+
+test("findShortestPath returns single node when start equals end", () => {
+    assert.deepEqual(findShortestPath([{ source: "a", target: "b" }], "a", "a"), ["a"]);
+});
+
+test("findShortestPath returns empty array when no path exists", () => {
+    const edges = [
+        { source: "a", target: "b" },
+        { source: "x", target: "y" },
+    ];
+    assert.deepEqual(findShortestPath(edges, "a", "y"), []);
+});
+
+test("findShortestPath returns empty array for unknown nodes", () => {
+    assert.deepEqual(findShortestPath([{ source: "a", target: "b" }], "a", "z"), []);
+});
+
+test("findShortestPath returns empty array for missing start or end id", () => {
+    assert.deepEqual(findShortestPath([{ source: "a", target: "b" }], "", "b"), []);
+    assert.deepEqual(findShortestPath([{ source: "a", target: "b" }], "a", ""), []);
 });

@@ -19,6 +19,7 @@ import {
   createIngestHistoryEntry,
   finalizeIngestHistoryEntry as finalizeIngestHistoryEntryUtil,
   renderIngestHistoryList,
+  findShortestPath,
 } from "./testable_utils.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -104,6 +105,7 @@ const dom = {
   openPipelineBtn: document.getElementById("openPipelineBtn"),
   clearHighlightBtn: document.getElementById("clearHighlightBtn"),
   contradictionModeBtn: document.getElementById("contradictionModeBtn"),
+  tracePathBtn: document.getElementById("tracePathBtn"),
   contradictionPanel: document.getElementById("contradictionPanel"),
   contradictionList: document.getElementById("contradictionList"),
   closeContradictionPanelBtn: document.getElementById("closeContradictionPanelBtn"),
@@ -129,6 +131,8 @@ const appState = {
   nodeTouchedBy: new Map(),
   ingestHistory: [],
   activeIngestEntry: null,
+  pathTraceMode: false,
+  pathTraceFirstNode: null,
 };
 
 function markNodeTouched(nodeId, agent) {
@@ -956,6 +960,46 @@ class KnowledgeGraph3D {
     });
   }
 
+  setPathHighlight(pathIds) {
+    const pathSet = new Set(pathIds);
+    const pathEdgeKeys = new Set();
+    for (let i = 0; i < pathIds.length - 1; i++) {
+      pathEdgeKeys.add(`${pathIds[i]}|${pathIds[i + 1]}`);
+      pathEdgeKeys.add(`${pathIds[i + 1]}|${pathIds[i]}`);
+    }
+
+    this.nodeMeshes.forEach((mesh, nodeId) => {
+      if (pathSet.has(nodeId)) {
+        mesh.userData.pulseUntil = performance.now() + 99999;
+        mesh.userData.pulseColor = new THREE.Color(0x34d399);
+        mesh.material.transparent = false;
+        mesh.material.opacity = 1;
+        mesh.userData.searchScaleTarget = 1.25;
+      } else {
+        mesh.material.transparent = true;
+        mesh.material.opacity = 0.1;
+        mesh.userData.searchScaleTarget = 0.8;
+      }
+    });
+
+    this.edgeObjects.forEach((line) => {
+      const key = `${line.userData.source}|${line.userData.target}`;
+      line.material.opacity = pathEdgeKeys.has(key) ? 1 : 0.06;
+    });
+  }
+
+  clearPathHighlight() {
+    this.nodeMeshes.forEach((mesh) => {
+      mesh.material.transparent = false;
+      mesh.material.opacity = 1;
+      mesh.userData.searchScaleTarget = 1;
+      mesh.userData.pulseUntil = 0;
+    });
+    this.edgeObjects.forEach((line) => {
+      line.material.opacity = 0.7;
+    });
+  }
+
   fitToNodes(nodeIds) {
     const positions = nodeIds
       .map((id) => this.forceNodesById.get(id))
@@ -1135,6 +1179,10 @@ class KnowledgeGraph3D {
 
 const graph = new KnowledgeGraph3D(dom.graphContainer, {
   onNodeClick: (node) => {
+    if (appState.pathTraceMode) {
+      handlePathTraceClick(node);
+      return;
+    }
     appState.selectedNodeId = node.id;
     showInspector(node);
   },
@@ -1495,6 +1543,41 @@ function toggleContradictionMode() {
     graph.clearContradictionMode();
     dom.contradictionPanel.classList.add("hidden");
   }
+}
+
+function togglePathTraceMode() {
+  appState.pathTraceMode = !appState.pathTraceMode;
+  appState.pathTraceFirstNode = null;
+  dom.tracePathBtn.classList.toggle("active", appState.pathTraceMode);
+
+  if (appState.pathTraceMode) {
+    addEventLog("path_trace", "Trace Path armed — click two nodes to find the connecting path");
+  } else {
+    graph.clearPathHighlight();
+  }
+}
+
+function handlePathTraceClick(node) {
+  if (!appState.pathTraceFirstNode) {
+    appState.pathTraceFirstNode = node.id;
+    addEventLog("path_trace", `First node selected: ${node.concept || node.id.slice(0, 8)}`);
+    return;
+  }
+
+  const edges = Array.from(graph.edgeObjects.values()).map((line) => ({
+    source: line.userData.source,
+    target: line.userData.target,
+  }));
+  const path = findShortestPath(edges, appState.pathTraceFirstNode, node.id);
+
+  if (!path.length) {
+    addEventLog("path_trace", "No connecting path found between selected nodes");
+  } else {
+    graph.setPathHighlight(path);
+    addEventLog("path_trace", `Path found — ${path.length} nodes, ${path.length - 1} hops`);
+  }
+
+  appState.pathTraceFirstNode = null;
 }
 
 async function loadGraphData() {
@@ -2049,6 +2132,7 @@ function bindEvents() {
   dom.openPipelineBtn.addEventListener("click", () => openDrawer("pipeline"));
 
   dom.contradictionModeBtn.addEventListener("click", toggleContradictionMode);
+  dom.tracePathBtn.addEventListener("click", togglePathTraceMode);
   dom.closeContradictionPanelBtn.addEventListener("click", () => {
     appState.contradictionMode = false;
     document.getElementById("graphSection").classList.remove("contradiction-mode-active");
@@ -2060,7 +2144,11 @@ function bindEvents() {
   dom.clearHighlightBtn.addEventListener("click", () => {
     graph.clearQueryHighlight();
     graph.clearSearchHighlight();
+    graph.clearPathHighlight();
     dom.nodeSearchInput.value = "";
+    appState.pathTraceMode = false;
+    appState.pathTraceFirstNode = null;
+    dom.tracePathBtn.classList.remove("active");
     graph.fitToAllNodes();
   });
 
