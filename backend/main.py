@@ -88,7 +88,9 @@ def configure_logging() -> None:
     file_handler.setFormatter(formatter)
     file_handler.addFilter(request_id_filter)
 
-    root.setLevel(logging.INFO)
+    import os
+    level = getattr(logging, os.environ.get("LOG_LEVEL", "INFO").upper(), logging.INFO)
+    root.setLevel(level)
     root.addHandler(stream_handler)
     root.addHandler(file_handler)
 

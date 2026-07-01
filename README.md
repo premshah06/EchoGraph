@@ -24,6 +24,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Query history panel — persisted in localStorage, click any past query to restore its question and answer in the Query tab
 - Individual node deletion — `DELETE /graph/nodes/{id}` endpoint with automatic edge cleanup, plus a Delete button in the node inspector
 - Confidence threshold filter — range slider in the graph toolbar that hides nodes and their edges below a chosen confidence score in real time
+- Docker production hardening — `HEALTHCHECK` in Dockerfile, CPU/memory resource limits in Compose, configurable `LOG_LEVEL` and `WORKERS` env vars
 
 ![EchoGraph Architecture](arch_image.png)
 
@@ -83,6 +84,8 @@ docker compose up --build
 - `ALLOWED_ORIGINS`: comma-separated CORS origins
 - `DEMO_MODE`: `true/false`
 - `API_KEYS`: comma-separated keys; when set, `/ingest/*`, `/query`, and `/graph/reset` require an `X-API-Key` header matching one of them (auth disabled if empty)
+- `LOG_LEVEL`: logging verbosity — `DEBUG`, `INFO` (default), `WARNING`, `ERROR`
+- `WORKERS`: number of uvicorn worker processes (default `2`)
 
 ## Testing
 

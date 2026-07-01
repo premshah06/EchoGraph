@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     # API Key Authentication (comma-separated; auth disabled if empty)
     api_keys: str = ""
 
+    # Runtime tuning
+    log_level: str = "INFO"
+    workers: int = 2
+
     class Config:
         env_file = ".env"
         case_sensitive = False
