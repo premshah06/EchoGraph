@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     workers: int = 2
 
+    # Token optimization engine (set to "true" to enable OptimizedLLMClient)
+    enable_token_optimizer: bool = False
+
     class Config:
         env_file = ".env"
         case_sensitive = False

@@ -164,14 +164,32 @@ _llm_client: Optional[object] = None
 
 
 def get_llm_client() -> object:
-    """Get a singleton LLM client (OpenAI or demo fallback)."""
+    """
+    Get a singleton LLM client.
+
+    Resolution order:
+      1. Demo mode / no API key  → DemoLLMClient (no network calls)
+      2. ENABLE_TOKEN_OPTIMIZER=true → OptimizedLLMClient (full optimization stack)
+      3. Default → LLMClient (original, unchanged behaviour)
+    """
     global _llm_client
     if _llm_client is not None:
         return _llm_client
 
     settings = get_settings()
+
     if settings.demo_mode or not settings.is_openai_configured:
         _llm_client = DemoLLMClient()
-    else:
-        _llm_client = LLMClient()
+        return _llm_client
+
+    if settings.enable_token_optimizer:
+        from backend.optimization.engine import OptimizedLLMClient
+        from backend.optimization.configs.echograph import EchoGraphConfig
+        _llm_client = OptimizedLLMClient(
+            config=EchoGraphConfig,
+            openai_api_key=settings.openai_api_key,
+        )
+        return _llm_client
+
+    _llm_client = LLMClient()
     return _llm_client
