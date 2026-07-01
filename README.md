@@ -26,6 +26,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Confidence threshold filter — range slider in the graph toolbar that hides nodes and their edges below a chosen confidence score in real time
 - Docker production hardening — `HEALTHCHECK` in Dockerfile, CPU/memory resource limits in Compose, configurable `LOG_LEVEL` and `WORKERS` env vars
 - Source credibility breakdown — Stats tab shows each ingested source with node count, relative bar, and average confidence score
+- Edge strength visualization — relationship strength (from Philosopher agent) is now persisted and rendered as edge opacity; strong connections are bright, weak ones are subtle
 
 ![EchoGraph Architecture](arch_image.png)
 

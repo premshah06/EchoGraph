@@ -527,10 +527,13 @@ class KnowledgeGraph3D {
     const geometry = new THREE.BufferGeometry();
     geometry.setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
 
+    const strength = Math.min(1, Math.max(0, edge.strength ?? 1));
+    const baseOpacity = 0.25 + strength * 0.65;
+
     const material = new THREE.LineBasicMaterial({
       color: this.getEdgeColor(edge.type),
       transparent: true,
-      opacity: 0.7,
+      opacity: baseOpacity,
     });
 
     const line = new THREE.Line(geometry, material);
@@ -538,6 +541,8 @@ class KnowledgeGraph3D {
       source: edge.source,
       target: edge.target,
       type: edge.type ?? "related",
+      strength,
+      baseOpacity,
       filterVisible: true,
     };
 
@@ -975,7 +980,7 @@ class KnowledgeGraph3D {
     });
 
     this.edgeObjects.forEach((line) => {
-      line.material.opacity = 0.7;
+      line.material.opacity = line.userData.baseOpacity ?? 0.7;
     });
   }
 
@@ -1008,7 +1013,7 @@ class KnowledgeGraph3D {
     });
 
     this.edgeObjects.forEach((line) => {
-      line.material.opacity = 0.7;
+      line.material.opacity = line.userData.baseOpacity ?? 0.7;
     });
   }
 
@@ -1044,7 +1049,7 @@ class KnowledgeGraph3D {
       mesh.userData.pulseUntil = 0;
     });
     this.edgeObjects.forEach((line) => {
-      line.material.opacity = 0.7;
+      line.material.opacity = line.userData.baseOpacity ?? 0.7;
     });
   }
 
@@ -1084,7 +1089,7 @@ class KnowledgeGraph3D {
       mesh.userData.pulseUntil = 0;
     });
     this.edgeObjects.forEach((line) => {
-      line.material.opacity = 0.7;
+      line.material.opacity = line.userData.baseOpacity ?? 0.7;
     });
   }
 
@@ -2048,6 +2053,7 @@ function handleSocketEvent(event) {
         source: data.from,
         target: data.to,
         type: data.type || "related",
+        strength: data.strength ?? 1,
       });
       markNodeTouched(data.from, "philosopher");
       markNodeTouched(data.to, "philosopher");

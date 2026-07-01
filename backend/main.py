@@ -672,17 +672,16 @@ async def get_graph_data():
         for node in nodes:
             connected_to = node.get("connected_to", [])
             relationship_types = node.get("relationship_types", [])
+            edge_strengths = node.get("edge_strengths", [])
             for idx, target_id in enumerate(connected_to):
                 if not target_id:
                     continue
-                relationship_type = relationship_types[idx] if idx < len(relationship_types) else "related"
-                edges.append(
-                    {
-                        "source": node["id"],
-                        "target": target_id,
-                        "type": relationship_type,
-                    }
-                )
+                edges.append({
+                    "source": node["id"],
+                    "target": target_id,
+                    "type": relationship_types[idx] if idx < len(relationship_types) else "related",
+                    "strength": edge_strengths[idx] if idx < len(edge_strengths) else 1.0,
+                })
 
         return {"nodes": nodes, "edges": edges}
     except Exception as exc:
@@ -749,6 +748,7 @@ async def export_graph():
         for node in nodes:
             connected_to = node.get("connected_to", [])
             relationship_types = node.get("relationship_types", [])
+            edge_strengths = node.get("edge_strengths", [])
             for idx, target_id in enumerate(connected_to):
                 if not target_id:
                     continue
@@ -756,6 +756,7 @@ async def export_graph():
                     "source": node["id"],
                     "target": target_id,
                     "relationship": relationship_types[idx] if idx < len(relationship_types) else "related",
+                    "strength": edge_strengths[idx] if idx < len(edge_strengths) else 1.0,
                 })
 
         payload = {

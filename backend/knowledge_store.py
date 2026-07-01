@@ -66,6 +66,9 @@ class KnowledgeStore:
             "relationship_types": KnowledgeStore._serialize_list(
                 [str(v) for v in node.get("relationship_types", [])]
             ),
+            "edge_strengths": KnowledgeStore._serialize_list(
+                [str(float(v)) for v in node.get("edge_strengths", [])]
+            ),
             "times_retrieved": int(node.get("times_retrieved", 0)),
             "created_at": str(
                 node.get("created_at")
@@ -85,6 +88,10 @@ class KnowledgeStore:
             "contradiction_resolved": bool(metadata.get("contradiction_resolved", False)),
             "connected_to": KnowledgeStore._deserialize_list(metadata.get("connected_to", "")),
             "relationship_types": KnowledgeStore._deserialize_list(metadata.get("relationship_types", "")),
+            "edge_strengths": [
+                float(v) for v in KnowledgeStore._deserialize_list(metadata.get("edge_strengths", ""))
+                if v
+            ],
             "times_retrieved": int(metadata.get("times_retrieved", 0)),
             "created_at": metadata.get("created_at", ""),
         }
@@ -228,6 +235,7 @@ class KnowledgeStore:
         node_a_id = str(connection.get("node_a_id", ""))
         node_b_id = str(connection.get("node_b_id", ""))
         relationship_type = str(connection.get("relationship_type", "related"))
+        strength = float(connection.get("strength", 1.0))
 
         if not node_a_id or not node_b_id:
             logger.warning("Skipping edge with missing node IDs: %s", connection)
@@ -240,14 +248,17 @@ class KnowledgeStore:
 
         connected_to = node_a.get("connected_to", [])
         relationship_types = node_a.get("relationship_types", [])
+        edge_strengths = node_a.get("edge_strengths", [])
 
         if node_b_id in connected_to:
             return
 
         connected_to.append(node_b_id)
         relationship_types.append(relationship_type)
+        edge_strengths.append(strength)
         node_a["connected_to"] = connected_to
         node_a["relationship_types"] = relationship_types
+        node_a["edge_strengths"] = edge_strengths
 
         metadata = self._prepare_metadata(node_a)
         self.collection.update(
@@ -269,9 +280,17 @@ class KnowledgeStore:
                 if node_id not in connected:
                     continue
                 rel_types = node.get("relationship_types", [])
-                pairs = [(t, r) for t, r in zip(connected, rel_types) if t != node_id]
-                node["connected_to"] = [p[0] for p in pairs]
-                node["relationship_types"] = [p[1] for p in pairs]
+                strengths = node.get("edge_strengths", [])
+                # Pad strengths to match length if older data missing it.
+                while len(strengths) < len(connected):
+                    strengths.append(1.0)
+                triples = [
+                    (t, r, s) for t, r, s in zip(connected, rel_types, strengths)
+                    if t != node_id
+                ]
+                node["connected_to"] = [x[0] for x in triples]
+                node["relationship_types"] = [x[1] for x in triples]
+                node["edge_strengths"] = [x[2] for x in triples]
                 self.collection.update(ids=[node["id"]], metadatas=[self._prepare_metadata(node)])
 
             self.collection.delete(ids=[node_id])
