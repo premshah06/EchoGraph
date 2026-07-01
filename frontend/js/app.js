@@ -118,6 +118,12 @@ const dom = {
   closeContradictionPanelBtn: document.getElementById("closeContradictionPanelBtn"),
   pipelineTimeline: document.getElementById("pipelineTimeline"),
   clearPipelineBtn: document.getElementById("clearPipelineBtn"),
+  batchContent: document.getElementById("batchContent"),
+  batchSourcePrefix: document.getElementById("batchSourcePrefix"),
+  batchCountHint: document.getElementById("batchCountHint"),
+  ingestBatchBtn: document.getElementById("ingestBatchBtn"),
+  batchState: document.getElementById("batchState"),
+  batchResults: document.getElementById("batchResults"),
 };
 
 const appState = {
@@ -1920,6 +1926,76 @@ async function ingestUrl() {
   }
 }
 
+function parseBatchDocuments(raw, sourcePrefix) {
+  return raw
+    .split(/^---$/m)
+    .map((block, idx) => ({
+      content: block.trim(),
+      source_label: `${sourcePrefix || "batch"}-${idx + 1}`,
+    }))
+    .filter(doc => doc.content.length > 0);
+}
+
+function renderBatchResults(data) {
+  const rows = data.results.map(r => {
+    const icon = r.status === "success" ? "✓" : r.status === "skipped" ? "—" : "✗";
+    const cls  = r.status === "success" ? "batch-row-ok" : r.status === "skipped" ? "batch-row-skip" : "batch-row-err";
+    const detail = r.status === "success"
+      ? `${r.nodes_created} nodes · ${r.edges_created} edges`
+      : r.error || r.status;
+    return `<div class="batch-row ${cls}"><span class="batch-row-icon">${icon}</span><span class="batch-row-source">${r.source_label}</span><span class="batch-row-detail">${detail}</span></div>`;
+  }).join("");
+
+  return `<div class="batch-summary">${data.succeeded}/${data.total} succeeded</div>${rows}`;
+}
+
+async function ingestBatch() {
+  const raw = dom.batchContent.value.trim();
+  if (!raw) {
+    alert("Paste at least one document.");
+    return;
+  }
+
+  const sourcePrefix = dom.batchSourcePrefix.value.trim() || "batch";
+  const documents = parseBatchDocuments(raw, sourcePrefix);
+
+  if (documents.length === 0) {
+    alert("No non-empty document blocks found.");
+    return;
+  }
+  if (documents.length > 20) {
+    alert("Maximum 20 documents per batch.");
+    return;
+  }
+
+  dom.ingestBatchBtn.disabled = true;
+  dom.batchState.textContent = `Running 0/${documents.length}…`;
+  dom.batchResults.classList.add("hidden");
+  dom.batchResults.innerHTML = "";
+
+  try {
+    const sessionId = ensureSession();
+    const data = await apiRequest("/ingest/batch", {
+      method: "POST",
+      body: JSON.stringify({ documents, events_session: sessionId }),
+    });
+
+    dom.batchState.textContent = data.status === "complete" ? "Done" : "Partial";
+    dom.batchResults.innerHTML = renderBatchResults(data);
+    dom.batchResults.classList.remove("hidden");
+    addEventLog("ingest", `Batch complete: ${data.succeeded}/${data.total} documents ingested`);
+
+    if (data.succeeded > 0) {
+      setTimeout(() => refreshGraph(), 800);
+    }
+  } catch (error) {
+    dom.batchState.textContent = "Error";
+    showUiError(error);
+  } finally {
+    dom.ingestBatchBtn.disabled = false;
+  }
+}
+
 async function queryKnowledge() {
   const query = dom.queryInput.value.trim();
   if (!query) {
@@ -2300,6 +2376,11 @@ function bindEvents() {
   dom.contradictionModeBtn.addEventListener("click", toggleContradictionMode);
   dom.tracePathBtn.addEventListener("click", togglePathTraceMode);
   dom.exportGraphBtn.addEventListener("click", exportGraph);
+  dom.ingestBatchBtn.addEventListener("click", ingestBatch);
+  dom.batchContent.addEventListener("input", () => {
+    const docs = parseBatchDocuments(dom.batchContent.value, "x");
+    dom.batchCountHint.textContent = `${docs.length} document${docs.length !== 1 ? "s" : ""} detected`;
+  });
   dom.closeContradictionPanelBtn.addEventListener("click", () => {
     appState.contradictionMode = false;
     document.getElementById("graphSection").classList.remove("contradiction-mode-active");

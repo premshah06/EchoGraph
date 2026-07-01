@@ -188,6 +188,53 @@ class URLIngestRequest(BaseModel):
         }
 
 
+class BatchIngestItem(BaseModel):
+    """A single document in a batch ingestion request."""
+    content: str = Field(..., min_length=1, description="Document text content")
+    source_label: str = Field(..., min_length=1, description="Filename or identifier")
+
+
+class BatchIngestRequest(BaseModel):
+    """Request model for batch document ingestion."""
+    documents: List[BatchIngestItem] = Field(..., min_length=1, max_length=20)
+    events_session: Optional[str] = Field(
+        default=None,
+        min_length=8,
+        max_length=128,
+        description="Optional WebSocket session identifier for real-time events",
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "documents": [
+                    {"content": "Machine learning is...", "source_label": "ml.txt"},
+                    {"content": "Deep learning refers to...", "source_label": "dl.txt"},
+                ]
+            }
+        }
+
+
+class BatchIngestItemResult(BaseModel):
+    """Result for one document in a batch."""
+    source_label: str
+    status: str                  # "success" | "failed" | "skipped"
+    nodes_created: int = 0
+    edges_created: int = 0
+    contradictions_resolved: int = 0
+    error: Optional[str] = None
+
+
+class BatchIngestResponse(BaseModel):
+    """Response model for batch ingestion."""
+    status: str                  # "complete" | "partial"
+    total: int
+    succeeded: int
+    failed: int
+    events_session: str
+    results: List[BatchIngestItemResult]
+
+
 class QueryRequest(BaseModel):
     """Request model for query answering."""
     

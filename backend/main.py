@@ -32,6 +32,9 @@ from backend.graphs.query_graph import create_query_graph
 from backend.knowledge_store import KnowledgeStore
 from backend.llm_client import get_llm_client
 from backend.models import (
+    BatchIngestRequest,
+    BatchIngestItemResult,
+    BatchIngestResponse,
     GraphStatsResponse,
     IngestRequest,
     IngestResponse,
@@ -613,6 +616,87 @@ async def ingest_url(request: URLIngestRequest):
         raise HTTPException(status_code=500, detail=f"Failed to ingest URL: {exc}")
 
 
+@app.post("/ingest/batch", response_model=BatchIngestResponse, dependencies=[Depends(require_api_key)])
+async def ingest_batch(request: BatchIngestRequest):
+    """Ingest up to 20 documents sequentially, collecting per-document results."""
+    if demo_mode_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Ingestion is disabled in demo mode. Configure OPENAI_API_KEY to enable it.",
+        )
+
+    session_id = request.events_session or str(uuid.uuid4())
+    loop = asyncio.get_running_loop()
+    results: list[BatchIngestItemResult] = []
+    succeeded = 0
+    failed = 0
+
+    for item in request.documents:
+        content = sanitize_text(item.content, MAX_DOCUMENT_CHARS)
+        source_label = sanitize_source_label(item.source_label)
+
+        if not content:
+            results.append(BatchIngestItemResult(
+                source_label=item.source_label,
+                status="skipped",
+                error="Content is empty after sanitization",
+            ))
+            failed += 1
+            continue
+
+        try:
+            initial_state = {
+                "input_type": "document",
+                "raw_content": content,
+                "source_label": source_label,
+                "existing_nodes": [],
+                "new_concepts": [],
+                "contradictions": [],
+                "connections": [],
+                "resolutions": [],
+                "query_text": "",
+                "retrieved_nodes": [],
+                "final_answer": "",
+                "current_agent": "",
+                "processing_complete": False,
+                "contradiction_found": False,
+                "resolution_confidence": 1.0,
+                "loop_count": 0,
+                "session_id": session_id,
+                "agent_events": [],
+                "event_callback": build_event_emitter(session_id, loop),
+            }
+
+            result = await run_in_threadpool(ingestion_graph.invoke, initial_state)
+
+            results.append(BatchIngestItemResult(
+                source_label=source_label,
+                status="success",
+                nodes_created=len(result.get("new_concepts", [])) + len(result.get("resolutions", [])),
+                edges_created=len(result.get("connections", [])),
+                contradictions_resolved=len(result.get("resolutions", [])),
+            ))
+            succeeded += 1
+
+        except Exception as exc:
+            logger.exception("Batch ingest failed for source=%s", source_label)
+            results.append(BatchIngestItemResult(
+                source_label=source_label,
+                status="failed",
+                error=str(exc)[:300],
+            ))
+            failed += 1
+
+    return BatchIngestResponse(
+        status="complete" if failed == 0 else "partial",
+        total=len(request.documents),
+        succeeded=succeeded,
+        failed=failed,
+        events_session=session_id,
+        results=results,
+    )
+
+
 @app.post("/query", response_model=QueryResponse, dependencies=[Depends(require_api_key)])
 async def query_knowledge(request: QueryRequest):
     """Run query graph and return grounded answer with source IDs."""
@@ -662,7 +746,7 @@ async def query_knowledge(request: QueryRequest):
         raise HTTPException(status_code=500, detail=f"Failed to process query: {exc}")
 
 
-@app.get("/graph/nodes")
+@app.get("/graph/nodes", dependencies=[Depends(require_api_key)])
 async def get_graph_data():
     """Return all nodes and edges for visualization."""
     try:
@@ -689,7 +773,7 @@ async def get_graph_data():
         raise HTTPException(status_code=500, detail=f"Failed to retrieve graph data: {exc}")
 
 
-@app.get("/graph/stats", response_model=GraphStatsResponse)
+@app.get("/graph/stats", response_model=GraphStatsResponse, dependencies=[Depends(require_api_key)])
 async def get_graph_stats():
     """Return current graph statistics."""
     try:
@@ -737,7 +821,7 @@ async def get_graph_stats():
         raise HTTPException(status_code=500, detail=f"Failed to retrieve graph stats: {exc}")
 
 
-@app.get("/graph/export")
+@app.get("/graph/export", dependencies=[Depends(require_api_key)])
 async def export_graph():
     """Export the full knowledge graph as a downloadable JSON file."""
     try:

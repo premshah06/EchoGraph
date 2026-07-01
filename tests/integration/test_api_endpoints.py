@@ -288,6 +288,36 @@ def test_reset_endpoint_protected_by_api_key(monkeypatch):
     assert authenticated.status_code == 200
 
 
+def test_graph_nodes_protected_by_api_key(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        unauthenticated = client.get("/graph/nodes")
+        authenticated = client.get("/graph/nodes", headers={"X-API-Key": "secret-key"})
+
+    assert unauthenticated.status_code == 401
+    assert authenticated.status_code == 200
+
+
+def test_graph_stats_protected_by_api_key(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        unauthenticated = client.get("/graph/stats")
+        authenticated = client.get("/graph/stats", headers={"X-API-Key": "secret-key"})
+
+    assert unauthenticated.status_code == 401
+    assert authenticated.status_code == 200
+
+
+def test_graph_export_protected_by_api_key(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        unauthenticated = client.get("/graph/export")
+        authenticated = client.get("/graph/export", headers={"X-API-Key": "secret-key"})
+
+    assert unauthenticated.status_code == 401
+    assert authenticated.status_code == 200
+
+
 def test_invalid_inputs(monkeypatch):
     with build_client(monkeypatch) as client:
         response = client.post("/query", json={"query": ""})
@@ -334,6 +364,98 @@ def test_request_id_header_is_echoed_when_provided(monkeypatch):
         response = client.get("/health", headers={"X-Request-ID": "client-supplied-id"})
 
     assert response.headers["x-request-id"] == "client-supplied-id"
+
+
+def test_batch_ingest_succeeds(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/batch",
+            json={
+                "documents": [
+                    {"content": "First document content.", "source_label": "doc-1.txt"},
+                    {"content": "Second document content.", "source_label": "doc-2.txt"},
+                ]
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert payload["succeeded"] == 2
+    assert payload["failed"] == 0
+    assert payload["status"] == "complete"
+    assert len(payload["results"]) == 2
+    assert all(r["status"] == "success" for r in payload["results"])
+
+
+def test_batch_ingest_partial_on_empty_content(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/batch",
+            json={
+                "documents": [
+                    {"content": "Valid content here.", "source_label": "doc-1.txt"},
+                    {"content": "   ", "source_label": "doc-2.txt"},
+                ]
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 2
+    assert payload["succeeded"] == 1
+    assert payload["failed"] == 1
+    assert payload["status"] == "partial"
+    statuses = {r["source_label"]: r["status"] for r in payload["results"]}
+    assert statuses["doc-1.txt"] == "success"
+    assert statuses["doc-2.txt"] == "skipped"
+
+
+def test_batch_ingest_rejects_more_than_20_docs(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/batch",
+            json={
+                "documents": [
+                    {"content": f"Content {i}", "source_label": f"doc-{i}.txt"}
+                    for i in range(21)
+                ]
+            },
+        )
+
+    assert response.status_code == 422
+
+
+def test_batch_ingest_blocked_in_demo_mode(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = True
+        response = client.post(
+            "/ingest/batch",
+            json={"documents": [{"content": "hello", "source_label": "doc.txt"}]},
+        )
+
+    assert response.status_code == 403
+
+
+def test_batch_ingest_protected_by_api_key(monkeypatch):
+    monkeypatch.setattr(main.get_settings(), "api_keys", "secret-key")
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        unauth = client.post(
+            "/ingest/batch",
+            json={"documents": [{"content": "hello", "source_label": "doc.txt"}]},
+        )
+        auth = client.post(
+            "/ingest/batch",
+            json={"documents": [{"content": "hello", "source_label": "doc.txt"}]},
+            headers={"X-API-Key": "secret-key"},
+        )
+
+    assert unauth.status_code == 401
+    assert auth.status_code == 200
 
 
 def test_websocket_connect_and_replay(monkeypatch):

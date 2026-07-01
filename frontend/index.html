@@ -15,7 +15,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="css/style.css?v=18" />
+  <link rel="stylesheet" href="css/style.css?v=20" />
 
   <script type="importmap">
     {
@@ -129,6 +129,27 @@
             <button id="ingestUrlBtn" class="btn secondary" type="button">
               Ingest URL
             </button>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Batch Ingest</h2>
+              <span id="batchState" class="chip">Idle</span>
+            </div>
+            <p class="hint">Paste multiple documents separated by <code>---</code> on its own line. Each block becomes one ingestion. Max 20 documents.</p>
+            <label for="batchContent">Documents</label>
+            <textarea id="batchContent" rows="8" placeholder="Document 1 text here...
+---
+Document 2 text here...
+---
+Document 3 text here..."></textarea>
+            <label for="batchSourcePrefix">Source Prefix</label>
+            <input id="batchSourcePrefix" type="text" placeholder="batch-2026" />
+            <p class="hint" id="batchCountHint">0 documents detected</p>
+            <button id="ingestBatchBtn" class="btn primary" type="button">
+              Ingest Batch
+            </button>
+            <div id="batchResults" class="batch-results hidden"></div>
           </section>
         </div>
 
@@ -343,6 +364,6 @@
     }
   </script>
 
-  <script type="module" src="js/app.js?v=18"></script>
+  <script type="module" src="js/app.js?v=20"></script>
 </body>
 </html>
