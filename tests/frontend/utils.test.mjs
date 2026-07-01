@@ -12,6 +12,7 @@ import {
     findShortestPath,
     createQueryHistoryEntry,
     renderQueryHistoryList,
+    renderSourceBreakdown,
 } from "../../frontend/js/testable_utils.js";
 
 test("escapeHtml sanitizes special characters", () => {
@@ -239,4 +240,42 @@ test("renderQueryHistoryList shows singular 'source' for 1 result", () => {
     const html = renderQueryHistoryList([entry]);
 
     assert.match(html, /1 source[^s]/);
+});
+
+test("renderSourceBreakdown shows empty state when no sources", () => {
+    assert.match(renderSourceBreakdown([]), /No sources yet\./);
+    assert.match(renderSourceBreakdown(undefined), /No sources yet\./);
+});
+
+test("renderSourceBreakdown renders source name, node count and confidence", () => {
+    const html = renderSourceBreakdown([
+        { source: "paper.pdf", node_count: 5, avg_confidence: 0.9 },
+    ]);
+    assert.match(html, /paper\.pdf/);
+    assert.match(html, /5 nodes/);
+    assert.match(html, /90%/);
+});
+
+test("renderSourceBreakdown escapes source name", () => {
+    const html = renderSourceBreakdown([
+        { source: "<img onerror=x>", node_count: 1, avg_confidence: 0.5 },
+    ]);
+    assert.doesNotMatch(html, /<img/);
+    assert.match(html, /&lt;img/);
+});
+
+test("renderSourceBreakdown widest bar is always 100%", () => {
+    const html = renderSourceBreakdown([
+        { source: "a.txt", node_count: 10, avg_confidence: 1.0 },
+        { source: "b.txt", node_count: 5, avg_confidence: 0.7 },
+    ]);
+    assert.match(html, /width:100%/);
+    assert.match(html, /width:50%/);
+});
+
+test("renderSourceBreakdown uses singular 'node' for count of 1", () => {
+    const html = renderSourceBreakdown([
+        { source: "solo.txt", node_count: 1, avg_confidence: 0.8 },
+    ]);
+    assert.match(html, /1 node[^s]/);
 });

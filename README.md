@@ -25,6 +25,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 - Individual node deletion — `DELETE /graph/nodes/{id}` endpoint with automatic edge cleanup, plus a Delete button in the node inspector
 - Confidence threshold filter — range slider in the graph toolbar that hides nodes and their edges below a chosen confidence score in real time
 - Docker production hardening — `HEALTHCHECK` in Dockerfile, CPU/memory resource limits in Compose, configurable `LOG_LEVEL` and `WORKERS` env vars
+- Source credibility breakdown — Stats tab shows each ingested source with node count, relative bar, and average confidence score
 
 ![EchoGraph Architecture](arch_image.png)
 

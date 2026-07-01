@@ -790,6 +790,65 @@ textarea {
 .synth-pill:has(input:checked)  { border-color: var(--accent-cyan); }
 .bridge-pill:has(input:checked) { border-color: var(--accent-violet); }
 
+.source-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.source-breakdown-empty {
+  color: var(--text-3);
+  font-size: 0.85rem;
+  padding: 4px 0;
+}
+
+.source-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-stat-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.source-stat-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 65%;
+}
+
+.source-stat-count {
+  font-size: 0.72rem;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.source-stat-bar-wrap {
+  height: 5px;
+  background: var(--surface-2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.source-stat-bar {
+  height: 100%;
+  background: var(--accent-amber);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.source-stat-conf {
+  font-size: 0.70rem;
+}
+
 .confidence-filter {
   display: flex;
   align-items: center;

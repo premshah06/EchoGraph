@@ -228,12 +228,20 @@ class QueryResponse(BaseModel):
     agent_events: List[Dict[str, Any]] = []
 
 
+class SourceStat(BaseModel):
+    """Per-source credibility breakdown."""
+    source: str
+    node_count: int
+    avg_confidence: float
+
+
 class GraphStatsResponse(BaseModel):
     """Response model for graph statistics."""
-    
+
     node_count: int
     edge_count: int
     contradiction_count: int
     synthesized_count: int = 0
     raw_count: int = 0
     bridge_count: int = 0
+    sources: List[SourceStat] = []

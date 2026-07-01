@@ -22,6 +22,7 @@ import {
   findShortestPath,
   createQueryHistoryEntry,
   renderQueryHistoryList,
+  renderSourceBreakdown,
 } from "./testable_utils.js";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -1738,6 +1739,9 @@ async function refreshStats() {
   dom.edgeCount.textContent = stats.edge_count;
   dom.contradictionCount.textContent = stats.contradiction_count;
   dom.synthesizedCount.textContent = stats.synthesized_count;
+
+  const breakdown = document.getElementById("sourceBreakdown");
+  if (breakdown) breakdown.innerHTML = renderSourceBreakdown(stats.sources || []);
 }
 
 async function checkHealth() {

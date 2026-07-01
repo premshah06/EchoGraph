@@ -702,6 +702,28 @@ async def get_graph_stats():
         contradiction_count = sum(1 for n in nodes if n.get("contradiction_resolved", False))
         edge_count = sum(len(n.get("connected_to", [])) for n in nodes)
 
+        # Per-source breakdown: node count + average confidence, sorted by node count desc.
+        source_buckets: dict = {}
+        for n in nodes:
+            src = n.get("source") or "unknown"
+            bucket = source_buckets.setdefault(src, {"count": 0, "conf_sum": 0.0})
+            bucket["count"] += 1
+            bucket["conf_sum"] += float(n.get("confidence", 1.0))
+
+        from backend.models import SourceStat
+        sources = sorted(
+            [
+                SourceStat(
+                    source=src,
+                    node_count=b["count"],
+                    avg_confidence=round(b["conf_sum"] / b["count"], 3),
+                )
+                for src, b in source_buckets.items()
+            ],
+            key=lambda s: s.node_count,
+            reverse=True,
+        )
+
         return GraphStatsResponse(
             node_count=len(nodes),
             edge_count=edge_count,
@@ -709,6 +731,7 @@ async def get_graph_stats():
             synthesized_count=synthesized_count,
             raw_count=raw_count,
             bridge_count=bridge_count,
+            sources=sources,
         )
     except Exception as exc:
         logger.exception("Error getting graph stats")

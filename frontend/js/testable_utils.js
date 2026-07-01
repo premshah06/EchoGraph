@@ -183,6 +183,34 @@ export function renderQueryHistoryList(entries) {
         .join("");
 }
 
+export function renderSourceBreakdown(sources) {
+    if (!sources || !sources.length) {
+        return '<p class="source-breakdown-empty">No sources yet.</p>';
+    }
+
+    const maxCount = Math.max(...sources.map((s) => s.node_count));
+
+    return sources
+        .map((s) => {
+            const pct = Math.round((s.node_count / maxCount) * 100);
+            const confPct = Math.round(s.avg_confidence * 100);
+            const confColor = confPct >= 80 ? "#6ee7b7" : confPct >= 50 ? "#fcd34d" : "#fca5a5";
+
+            return `
+      <div class="source-stat">
+        <div class="source-stat-head">
+          <span class="source-stat-name">${escapeHtml(s.source)}</span>
+          <span class="source-stat-count">${s.node_count} node${s.node_count !== 1 ? "s" : ""}</span>
+        </div>
+        <div class="source-stat-bar-wrap">
+          <div class="source-stat-bar" style="width:${pct}%"></div>
+        </div>
+        <div class="source-stat-conf" style="color:${confColor};">avg confidence ${confPct}%</div>
+      </div>`;
+        })
+        .join("");
+}
+
 export function renderAnswerTemplate(answer, sources = []) {
     const safeAnswer = escapeHtml(answer)
         .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
