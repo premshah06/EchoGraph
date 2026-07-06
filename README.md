@@ -85,7 +85,7 @@ docker compose up --build
 - `CHROMADB_PERSIST_DIR`: storage directory
 - `ALLOWED_ORIGINS`: comma-separated CORS origins
 - `DEMO_MODE`: `true/false`
-- `API_KEYS`: comma-separated keys; when set, `/ingest/*`, `/query`, and `/graph/reset` require an `X-API-Key` header matching one of them (auth disabled if empty)
+- `API_KEYS`: comma-separated keys; when set, all graph endpoints (`/ingest/*`, `/query`, `/graph/nodes`, `/graph/stats`, `/graph/export`, `/graph/reset`) require an `X-API-Key` header matching one of them (auth disabled if empty)
 - `LOG_LEVEL`: logging verbosity — `DEBUG`, `INFO` (default), `WARNING`, `ERROR`
 - `WORKERS`: number of uvicorn worker processes (default `2`)
 

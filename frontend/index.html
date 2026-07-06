@@ -15,7 +15,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="css/style.css?v=20" />
+  <link rel="stylesheet" href="css/style.css?v=21" />
 
   <script type="importmap">
     {
@@ -85,6 +85,7 @@
           <button class="sidebar-tab" data-tab="stats" role="tab" type="button">Stats</button>
           <button class="sidebar-tab" data-tab="history" role="tab" type="button">History</button>
           <button class="sidebar-tab" data-tab="queries" role="tab" type="button">Queries</button>
+          <button class="sidebar-tab" data-tab="search" role="tab" type="button">Search</button>
         </div>
 
         <!-- Ingest pane -->
@@ -209,6 +210,32 @@ Document 3 text here..."></textarea>
             </div>
             <p class="hint">Click any entry to restore the query and answer.</p>
             <div id="queryHistoryList" class="query-history-list"></div>
+          </section>
+        </div>
+
+        <!-- Graph Search pane -->
+        <div class="sidebar-pane hidden" data-pane="search">
+          <section class="card">
+            <div class="card-head">
+              <h2>Graph Search</h2>
+              <div id="graphSearchSpinner" class="spinner hidden" aria-hidden="true"></div>
+            </div>
+            <p class="hint">Search the knowledge graph semantically — finds nodes by meaning, not just keywords.</p>
+            <label for="graphSearchInput">Search Query</label>
+            <input id="graphSearchInput" type="text" placeholder="What do you want to find?" />
+            <div class="graph-search-controls">
+              <label class="graph-search-filter-label">
+                <input type="checkbox" id="filterTypeRaw" checked /> Raw
+              </label>
+              <label class="graph-search-filter-label">
+                <input type="checkbox" id="filterTypeSynth" checked /> Synthesized
+              </label>
+              <label class="graph-search-filter-label">
+                <input type="checkbox" id="filterTypeBridge" checked /> Bridge
+              </label>
+            </div>
+            <button id="graphSearchBtn" class="btn primary" type="button">Search Graph</button>
+            <div id="graphSearchResults" class="graph-search-results"></div>
           </section>
         </div>
 
@@ -364,6 +391,6 @@ Document 3 text here..."></textarea>
     }
   </script>
 
-  <script type="module" src="js/app.js?v=20"></script>
+  <script type="module" src="js/app.js?v=21"></script>
 </body>
 </html>

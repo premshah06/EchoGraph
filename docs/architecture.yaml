@@ -1,0 +1,48 @@
+# Source of truth for the architecture diagram.
+# Edit this file when the system's components or data flow change.
+# The `update-architecture-diagram` skill renders docs/architecture/diagram.html from this file.
+#
+# If this file is absent or a section/component isn't described here, the skill
+# falls back to inferring structure from the codebase (backend/agents/*, main.py, etc.)
+# for anything missing — but keeping this file current is cheaper and more accurate.
+
+title: EchoSystem Architecture
+
+groups:
+  - name: Agents
+    nodes:
+      - id: librarian
+        label: Librarian
+      - id: scholar
+        label: Scholar
+      - id: philosopher
+        label: Philosopher
+      - id: critic
+        label: Critic
+      - id: synthesizer
+        label: Synthesizer
+
+  - name: Core
+    nodes:
+      - id: main
+        label: FastAPI App (main.py)
+      - id: retry
+        label: Retry Logic
+      - id: models
+        label: Models
+
+edges:
+  - from: librarian
+    to: main
+  - from: scholar
+    to: main
+  - from: philosopher
+    to: main
+  - from: critic
+    to: main
+  - from: synthesizer
+    to: main
+  - from: main
+    to: retry
+  - from: main
+    to: models

@@ -1,0 +1,27 @@
+{
+  "id": "contradiction_case",
+  "description": "Two documents make directly conflicting factual claims about the same drug's effect on blood pressure. Critic should detect this as a genuine contradiction, and Synthesizer should resolve it with a confidence in a plausible mid-to-high range.",
+  "documents": [
+    {
+      "source_label": "study_a.txt",
+      "raw_content": "A randomized controlled trial of 500 patients found that Drug X significantly lowers systolic blood pressure by an average of 12 mmHg over 8 weeks compared to placebo. The effect was consistent across age groups and was statistically significant (p < 0.01)."
+    },
+    {
+      "source_label": "study_b.txt",
+      "raw_content": "A separate clinical trial of 450 patients concluded that Drug X has no meaningful effect on systolic blood pressure, showing only a 1 mmHg change versus placebo over the same 8-week period, which was not statistically significant (p = 0.42)."
+    }
+  ],
+  "expected_concepts": {
+    "study_a.txt": ["blood pressure", "Drug X"],
+    "study_b.txt": ["blood pressure", "Drug X"]
+  },
+  "expected_contradiction": {
+    "should_detect": true,
+    "min_confidence": 0.4,
+    "max_confidence": 1.0
+  },
+  "query": {
+    "text": "Does Drug X lower blood pressure?",
+    "expect_citation": true
+  }
+}

@@ -2,11 +2,17 @@
 EchoGraph optimization config — Top Layer for the multi-agent KB pipeline.
 
 Agent complexity assignments:
-  librarian   → 0.35 (structured extraction, simple format)
-  philosopher → 0.40 (relationship detection, binary + score)
-  critic      → 0.65 (contradiction reasoning, needs nuance)
-  synthesizer → 0.75 (resolution writing, quality matters)
-  scholar     → 0.80 (user-facing answer, highest quality)
+  librarian   → 0.35 (structured extraction, simple format)      → routed, usually nano/mini
+  philosopher → 0.40 (relationship detection, binary + score)    → routed, usually nano/mini
+  critic      → 0.65 (contradiction reasoning, needs nuance)     → routed, usually mini/4o
+  synthesizer → 0.75 (resolution writing, quality matters)       → pinned gpt-4o
+  scholar     → 0.80 (user-facing answer, highest quality)       → pinned gpt-4o
+
+librarian/philosopher/critic are left unpinned (model=None) so ModelRouter
+actually performs complexity-based selection for them instead of the config
+silently fixing every call to the same model. synthesizer/scholar are pinned
+because their output quality directly affects what gets persisted as
+knowledge-graph truth — not worth leaving to a heuristic.
 
 Field compression maps strip everything agents don't read from node payloads,
 reducing per-call context by ~70–76%.
@@ -28,7 +34,7 @@ EchoGraphConfig = OptimizationConfig(
     agents={
         "librarian": AgentConfig(
             fields=[],          # librarian gets raw text, not node payloads — no compression
-            model="gpt-4o-mini",
+            model=None,         # unpinned — router selects nano/mini by complexity
             base_complexity=0.35,
             temperature=0.3,
             system_prompt=(
@@ -41,7 +47,7 @@ EchoGraphConfig = OptimizationConfig(
         "philosopher": AgentConfig(
             # Only needs concept names to reason about relationships.
             fields=["id", "concept", "node_type"],
-            model="gpt-4o-mini",
+            model=None,         # unpinned — router selects nano/mini by complexity
             base_complexity=0.40,
             temperature=0.3,
             system_prompt=(
@@ -54,7 +60,7 @@ EchoGraphConfig = OptimizationConfig(
         "critic": AgentConfig(
             # Needs concept + summary + source to detect contradiction.
             fields=["id", "concept", "summary", "source", "confidence"],
-            model="gpt-4o-mini",
+            model=None,         # unpinned — router selects mini/4o by complexity
             base_complexity=0.65,
             temperature=0.2,
             system_prompt=(

@@ -51,6 +51,11 @@ logs/
 .coverage
 htmlcov/
 .tox/
+test_db/
+
+# Local docs not for version control
+CLAUDE.md
+RESUME_CONTEXT.md
 
 # Jupyter
 .ipynb_checkpoints

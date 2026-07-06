@@ -5,6 +5,7 @@ Handles persistent vector storage for knowledge nodes.
 
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -74,6 +75,7 @@ class KnowledgeStore:
                 node.get("created_at")
                 or datetime.now(timezone.utc).isoformat()
             ),
+            "derivation": json.dumps(node["derivation"]) if node.get("derivation") else "",
         }
 
     @staticmethod
@@ -94,6 +96,7 @@ class KnowledgeStore:
             ],
             "times_retrieved": int(metadata.get("times_retrieved", 0)),
             "created_at": metadata.get("created_at", ""),
+            "derivation": json.loads(metadata["derivation"]) if metadata.get("derivation") else None,
         }
         if embedding is not None:
             node["embedding"] = embedding

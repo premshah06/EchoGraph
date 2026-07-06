@@ -11,6 +11,7 @@ from typing import Dict, List
 from backend.events import emit_event
 from backend.knowledge_store import KnowledgeStore
 from backend.llm_client import get_llm_client
+from backend.retry import with_retry
 from backend.state import EchoState
 
 logger = logging.getLogger(__name__)
@@ -104,7 +105,7 @@ Requirements:
 - If evidence is conflicting or incomplete, acknowledge it explicitly in your answer.
 """
 
-        final_answer = llm_client.invoke(answer_prompt).strip()
+        final_answer = with_retry(llm_client.invoke, answer_prompt, agent="scholar").strip()
         if not final_answer:
             final_answer = "I could not generate a grounded answer from the retrieved knowledge nodes."
 

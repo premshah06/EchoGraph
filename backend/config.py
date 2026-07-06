@@ -35,8 +35,8 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     workers: int = 2
 
-    # Token optimization engine (set to "true" to enable OptimizedLLMClient)
-    enable_token_optimizer: bool = False
+    # Token optimization engine (set to "false" to fall back to plain LLMClient)
+    enable_token_optimizer: bool = True
 
     class Config:
         env_file = ".env"

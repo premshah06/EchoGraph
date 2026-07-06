@@ -13,6 +13,7 @@ from uuid import uuid4
 from backend.events import emit_event
 from backend.knowledge_store import KnowledgeStore
 from backend.llm_client import get_llm_client
+from backend.retry import with_retry
 from backend.state import EchoState
 
 logger = logging.getLogger(__name__)
@@ -99,7 +100,7 @@ Document:
 Begin with a brief 1-2 sentence analysis of the document, then list the concepts.
 """
 
-        response = llm_client.invoke(extraction_prompt)
+        response = with_retry(llm_client.invoke, extraction_prompt, agent="librarian")
         parsed_concepts = _parse_concepts(response)
 
         if not parsed_concepts:

@@ -319,8 +319,18 @@ class TestEchoGraphConfig:
     def test_synthesizer_uses_4o(self):
         assert EchoGraphConfig.agents["synthesizer"].model == "gpt-4o"
 
-    def test_librarian_uses_mini(self):
-        assert EchoGraphConfig.agents["librarian"].model == "gpt-4o-mini"
+    def test_librarian_is_unpinned_for_routing(self):
+        assert EchoGraphConfig.agents["librarian"].model is None
+
+    def test_philosopher_is_unpinned_for_routing(self):
+        assert EchoGraphConfig.agents["philosopher"].model is None
+
+    def test_critic_is_unpinned_for_routing(self):
+        assert EchoGraphConfig.agents["critic"].model is None
+
+    def test_synthesizer_and_scholar_remain_pinned(self):
+        assert EchoGraphConfig.agents["synthesizer"].model == "gpt-4o"
+        assert EchoGraphConfig.agents["scholar"].model == "gpt-4o"
 
     def test_critic_has_low_temperature(self):
         assert EchoGraphConfig.agents["critic"].temperature <= 0.3

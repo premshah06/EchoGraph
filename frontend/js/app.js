@@ -124,6 +124,13 @@ const dom = {
   ingestBatchBtn: document.getElementById("ingestBatchBtn"),
   batchState: document.getElementById("batchState"),
   batchResults: document.getElementById("batchResults"),
+  graphSearchInput: document.getElementById("graphSearchInput"),
+  graphSearchBtn: document.getElementById("graphSearchBtn"),
+  graphSearchSpinner: document.getElementById("graphSearchSpinner"),
+  graphSearchResults: document.getElementById("graphSearchResults"),
+  filterTypeRaw: document.getElementById("filterTypeRaw"),
+  filterTypeSynth: document.getElementById("filterTypeSynth"),
+  filterTypeBridge: document.getElementById("filterTypeBridge"),
 };
 
 const appState = {
@@ -1524,6 +1531,13 @@ function showInspector(node) {
       <div class="insp-connections">${connectionItems.join("")}</div>
     </div>` : ""}
 
+    ${nodeType === "synthesized" ? `
+    <div class="insp-section">
+      <span class="insp-label">Provenance</span>
+      <button class="insp-action-btn provenance" data-node-id="${escapeHtml(node.id)}">🔍 Why does the graph believe this?</button>
+      <div class="insp-provenance-trace" id="provenanceTrace"></div>
+    </div>` : ""}
+
     <div class="insp-actions">
       <button class="insp-action-btn focus" data-node-id="${escapeHtml(node.id)}">🎯 Focus in Graph</button>
       <button class="insp-action-btn delete danger" data-node-id="${escapeHtml(node.id)}">🗑 Delete</button>
@@ -1561,6 +1575,55 @@ function showInspector(node) {
 
   dom.inspectorBody.querySelector(".insp-action-btn.clear")
     ?.addEventListener("click", () => showInspector(null));
+
+  dom.inspectorBody.querySelector(".insp-action-btn.provenance")
+    ?.addEventListener("click", async (e) => {
+      const btn = e.currentTarget;
+      const traceEl = dom.inspectorBody.querySelector("#provenanceTrace");
+      btn.disabled = true;
+      btn.textContent = "Loading…";
+      try {
+        const payload = await apiRequest(`/graph/nodes/${btn.dataset.nodeId}/provenance`);
+        traceEl.innerHTML = renderProvenanceTrace(payload.trace);
+        btn.style.display = "none";
+      } catch (err) {
+        traceEl.innerHTML = `<p class="insp-provenance-error">Failed to load provenance: ${escapeHtml(err.message)}</p>`;
+        btn.disabled = false;
+        btn.textContent = "🔍 Why does the graph believe this?";
+      }
+    });
+}
+
+function renderProvenanceTrace(trace, depth = 0) {
+  if (!trace) return "";
+
+  if (!trace.found) {
+    return `<div class="insp-provenance-node" style="margin-left:${depth * 16}px">
+      <span class="insp-provenance-missing">Source node ${escapeHtml(trace.id.slice(0, 8))}… no longer exists</span>
+    </div>`;
+  }
+
+  const derivation = trace.derivation;
+  const header = `
+    <div class="insp-provenance-node" style="margin-left:${depth * 16}px">
+      <span class="insp-type-dot ${escapeHtml(trace.node_type)}"></span>
+      <span class="insp-provenance-concept">${escapeHtml(trace.concept || "Untitled")}</span>
+      <span class="insp-type-badge ${escapeHtml(trace.node_type)}">${escapeHtml(trace.node_type)}</span>
+    </div>`;
+
+  const derivationBlock = derivation ? `
+    <div class="insp-provenance-derivation" style="margin-left:${(depth + 1) * 16}px">
+      <div><strong>Contradiction:</strong> ${escapeHtml(derivation.contradiction_reason || "—")}</div>
+      <div><strong>Credibility:</strong> ${escapeHtml(derivation.credibility_assessment || "—")}</div>
+      <div><strong>Synthesis reasoning:</strong> ${escapeHtml(derivation.synthesis_reasoning || "—")}</div>
+      <div><strong>Resolution loop:</strong> iteration ${Number(derivation.loop_iteration ?? 0)}</div>
+    </div>` : "";
+
+  const sourcesBlock = (trace.sources || [])
+    .map((source) => renderProvenanceTrace(source, depth + 1))
+    .join("");
+
+  return header + derivationBlock + sourcesBlock;
 }
 
 const PIPELINE_AGENT_INITIALS = {
@@ -1923,6 +1986,79 @@ async function ingestUrl() {
     showUiError(error);
   } finally {
     setIngestLoading(false);
+  }
+}
+
+function renderGraphSearchResults(data) {
+  if (data.total === 0) {
+    return `<p class="graph-search-empty">No nodes matched "<em>${data.query}</em>".</p>`;
+  }
+
+  const rows = data.results.map(r => {
+    const pct = Math.round(r.similarity * 100);
+    const typeClass = r.node_type === "synthesized" ? "synth" : r.node_type === "bridge" ? "bridge" : "raw";
+    return `
+      <div class="gs-result" data-node-id="${r.id}">
+        <div class="gs-result-head">
+          <span class="gs-result-concept">${r.concept}</span>
+          <span class="gs-result-badge ${typeClass}">${r.node_type}</span>
+        </div>
+        <div class="gs-result-summary">${r.summary}</div>
+        <div class="gs-result-meta">
+          <span class="gs-result-sim">
+            <span class="gs-sim-bar-wrap"><span class="gs-sim-bar" style="width:${pct}%"></span></span>
+            ${pct}% match
+          </span>
+          <span class="gs-result-source">${r.source}</span>
+        </div>
+      </div>`;
+  }).join("");
+
+  return `<div class="gs-result-count">${data.total} result${data.total !== 1 ? "s" : ""} for "<em>${data.query}</em>"</div>${rows}`;
+}
+
+async function searchGraph() {
+  const query = dom.graphSearchInput.value.trim();
+  if (!query) return;
+
+  const nodeTypes = [];
+  if (dom.filterTypeRaw.checked)    nodeTypes.push("raw");
+  if (dom.filterTypeSynth.checked)  nodeTypes.push("synthesized");
+  if (dom.filterTypeBridge.checked) nodeTypes.push("bridge");
+
+  dom.graphSearchBtn.disabled = true;
+  dom.graphSearchSpinner.classList.remove("hidden");
+  dom.graphSearchResults.innerHTML = "";
+
+  try {
+    const data = await apiRequest("/graph/search", {
+      method: "POST",
+      body: JSON.stringify({
+        query,
+        top_k: 15,
+        threshold: 0.25,
+        node_types: nodeTypes.length < 3 ? nodeTypes : null,
+      }),
+    });
+
+    dom.graphSearchResults.innerHTML = renderGraphSearchResults(data);
+
+    // Clicking a result focuses that node in the graph and opens inspector
+    dom.graphSearchResults.querySelectorAll(".gs-result[data-node-id]").forEach(el => {
+      el.addEventListener("click", () => {
+        const nodeId = el.dataset.nodeId;
+        graph.focusNode(nodeId);
+        const node = graph.getNodeById(nodeId);
+        if (node) showInspector(node);
+        openDrawer("inspector");
+      });
+    });
+
+  } catch (error) {
+    dom.graphSearchResults.innerHTML = `<p class="graph-search-empty">Search failed: ${error.message}</p>`;
+  } finally {
+    dom.graphSearchBtn.disabled = false;
+    dom.graphSearchSpinner.classList.add("hidden");
   }
 }
 
@@ -2377,6 +2513,10 @@ function bindEvents() {
   dom.tracePathBtn.addEventListener("click", togglePathTraceMode);
   dom.exportGraphBtn.addEventListener("click", exportGraph);
   dom.ingestBatchBtn.addEventListener("click", ingestBatch);
+  dom.graphSearchBtn.addEventListener("click", searchGraph);
+  dom.graphSearchInput.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); searchGraph(); }
+  });
   dom.batchContent.addEventListener("input", () => {
     const docs = parseBatchDocuments(dom.batchContent.value, "x");
     dom.batchCountHint.textContent = `${docs.length} document${docs.length !== 1 ? "s" : ""} detected`;

@@ -1,0 +1,21 @@
+{
+  "id": "no_contradiction_case",
+  "description": "Two documents discuss different, non-conflicting aspects of the same general topic (renewable energy). Critic should NOT flag a contradiction since the claims address different scopes (cost trend vs. storage technology), not the same assertion.",
+  "documents": [
+    {
+      "source_label": "energy_costs.txt",
+      "raw_content": "The cost of solar photovoltaic panels has fallen by roughly 90% over the past decade, driven by manufacturing scale and improved silicon wafer efficiency. This has made solar the cheapest source of new electricity generation in many regions."
+    },
+    {
+      "source_label": "energy_storage.txt",
+      "raw_content": "Grid-scale battery storage remains a key bottleneck for renewable energy adoption, since solar and wind generation is intermittent. Lithium-ion battery costs have declined but large-scale deployment still faces supply chain constraints on raw materials like lithium and cobalt."
+    }
+  ],
+  "expected_concepts": {
+    "energy_costs.txt": ["solar", "cost"],
+    "energy_storage.txt": ["storage", "battery"]
+  },
+  "expected_contradiction": {
+    "should_detect": false
+  }
+}

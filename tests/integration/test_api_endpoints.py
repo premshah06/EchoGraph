@@ -28,6 +28,7 @@ class FakeStore:
                 "relationship_types": ["supports"],
                 "times_retrieved": 0,
                 "created_at": "",
+                "derivation": None,
             },
             {
                 "id": "node-2",
@@ -41,11 +42,24 @@ class FakeStore:
                 "relationship_types": [],
                 "times_retrieved": 0,
                 "created_at": "",
+                "derivation": {
+                    "source_node_ids": ["node-1"],
+                    "contradiction_reason": "Claims conflict on the same metric",
+                    "credibility_assessment": "Source A is more credible",
+                    "synthesis_reasoning": "Both hold under different conditions",
+                    "loop_iteration": 0,
+                },
             },
         ]
 
     def get_all_nodes(self):
         return list(self.nodes)
+
+    def get_node(self, node_id: str, include_embedding: bool = False):
+        for node in self.nodes:
+            if node["id"] == node_id:
+                return dict(node)
+        return None
 
     def reset(self):
         self.nodes = []
@@ -200,6 +214,41 @@ def test_delete_node_endpoint(monkeypatch):
 def test_delete_node_returns_404_for_unknown_id(monkeypatch):
     with build_client(monkeypatch) as client:
         response = client.delete("/graph/nodes/does-not-exist")
+
+    assert response.status_code == 404
+
+
+def test_provenance_endpoint_returns_derivation_chain(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/graph/nodes/node-2/provenance")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["node_id"] == "node-2"
+
+    trace = payload["trace"]
+    assert trace["id"] == "node-2"
+    assert trace["derivation"]["contradiction_reason"] == "Claims conflict on the same metric"
+    assert len(trace["sources"]) == 1
+    assert trace["sources"][0]["id"] == "node-1"
+    assert trace["sources"][0]["derivation"] is None
+    assert trace["sources"][0]["sources"] == []
+
+
+def test_provenance_endpoint_handles_raw_node_with_no_derivation(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/graph/nodes/node-1/provenance")
+
+    assert response.status_code == 200
+    trace = response.json()["trace"]
+    assert trace["id"] == "node-1"
+    assert trace["derivation"] is None
+    assert trace["sources"] == []
+
+
+def test_provenance_endpoint_returns_404_for_unknown_node(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/graph/nodes/does-not-exist/provenance")
 
     assert response.status_code == 404
 

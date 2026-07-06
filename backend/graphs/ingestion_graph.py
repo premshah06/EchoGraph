@@ -77,6 +77,19 @@ def create_store_node(knowledge_store: KnowledgeStore):
             llm_client = get_llm_client()
             for resolution in state.get("resolutions", []):
                 summary = resolution.get("synthesis_text", "")[:2000]
+                new_concept_id = resolution.get("new_concept_id", "")
+                resolved_new_concept_id = temp_to_stored.get(new_concept_id, new_concept_id)
+
+                derivation = {
+                    "source_node_ids": [
+                        nid for nid in (resolution.get("old_node_id"), resolved_new_concept_id) if nid
+                    ],
+                    "contradiction_reason": resolution.get("contradiction_reason", ""),
+                    "credibility_assessment": resolution.get("credibility_assessment", ""),
+                    "synthesis_reasoning": resolution.get("reasoning", ""),
+                    "loop_iteration": resolution.get("loop_iteration", 0),
+                }
+
                 synth_node = {
                     "concept": f"Synthesis: {resolution.get('new_concept', 'Resolved Claim')[:160]}",
                     "summary": summary,
@@ -89,6 +102,7 @@ def create_store_node(knowledge_store: KnowledgeStore):
                     "embedding": llm_client.embed_text(summary or "Synthesis"),
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "times_retrieved": 0,
+                    "derivation": derivation,
                 }
                 stored_id = knowledge_store.add_node(synth_node)
                 stored_ids.append(stored_id)

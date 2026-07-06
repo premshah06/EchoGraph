@@ -54,10 +54,37 @@ class OptimizedLLMClient:
         self._embedding_cache: Dict[str, List[float]] = {}
         self._cache_limit = 512
 
-    def invoke(
+    def invoke(self, prompt: str, agent: str = "unknown") -> str:
+        """
+        Drop-in replacement for LLMClient.invoke / DemoLLMClient.invoke.
+
+        Agents build their own full prompt string and call this the same way
+        regardless of which client backs `get_llm_client()`. Routing still
+        applies: model selection is based on the agent's configured complexity
+        and the prompt's length, and the call is recorded under the real
+        agent name (not a generic bucket) so /graph/stats reflects true
+        per-agent cost and savings.
+        """
+        return self._invoke_structured(agent, payload=None, raw_prompt=prompt)
+
+    def invoke_structured(
         self,
         agent: str,
         payload: Dict[str, Any],
+        response_schema: Optional[Dict] = None,
+    ) -> str:
+        """
+        Structured entrypoint for callers that have a node/context payload
+        instead of a pre-built prompt string (e.g. the eval harness or a
+        future batch-scoring tool). Applies payload compression before
+        sending, unlike `invoke`.
+        """
+        return self._invoke_structured(agent, payload=payload, response_schema=response_schema)
+
+    def _invoke_structured(
+        self,
+        agent: str,
+        payload: Optional[Dict[str, Any]] = None,
         response_schema: Optional[Dict] = None,
         raw_prompt: Optional[str] = None,
     ) -> str:
@@ -120,9 +147,13 @@ class OptimizedLLMClient:
         cost_usd      = self.router.estimate_cost(model, input_tokens, output_tokens)
         latency_ms    = (time.perf_counter() - t_start) * 1000
 
-        original_tokens = self.counter.estimate(json.dumps(payload, separators=(",", ":")))
-        compressed_tokens = self.counter.estimate(user_content)
-        compression_ratio = 1.0 - (compressed_tokens / max(original_tokens, 1))
+        if raw_prompt is None:
+            original_tokens = self.counter.estimate(json.dumps(payload, separators=(",", ":")))
+            compressed_tokens = self.counter.estimate(user_content)
+            compression_ratio = 1.0 - (compressed_tokens / max(original_tokens, 1))
+        else:
+            # No payload to compress against — this call sent a pre-built prompt as-is.
+            compression_ratio = 0.0
 
         metrics = CallMetrics(
             agent=agent,
@@ -144,41 +175,6 @@ class OptimizedLLMClient:
             compression_ratio * 100,
         )
 
-        return content
-
-    def invoke_raw(self, prompt: str, model: Optional[str] = None) -> str:
-        """
-        Bypass compression/routing — send a raw prompt with no config lookup.
-        Used by agents that build their own prompts (e.g. librarian, scholar).
-        Still records metrics under agent='_raw'.
-        """
-        t_start = time.perf_counter()
-        chosen_model = model or self.config.default_model
-
-        response = self._openai.chat.completions.create(
-            model=chosen_model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.4,
-        )
-        content = response.choices[0].message.content or ""
-
-        input_tokens  = response.usage.prompt_tokens
-        output_tokens = response.usage.completion_tokens
-        cost_usd      = self.router.estimate_cost(chosen_model, input_tokens, output_tokens)
-        latency_ms    = (time.perf_counter() - t_start) * 1000
-
-        metrics = CallMetrics(
-            agent="_raw",
-            model=chosen_model,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
-            cache_hit=False,
-            cost_usd=cost_usd,
-            latency_ms=latency_ms,
-            compression_ratio=0.0,
-            budget_used_pct=(input_tokens / self.config.max_tokens_per_call) * 100,
-        )
-        self.session.record(metrics)
         return content
 
     def embed_text(self, text: str) -> List[float]:

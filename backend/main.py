@@ -15,7 +15,7 @@ import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
-from typing import Deque, Dict, List, Optional, Set, Tuple
+from typing import Any, Deque, Dict, List, Optional, Set, Tuple
 
 import httpx
 from bs4 import BeautifulSoup
@@ -35,6 +35,9 @@ from backend.models import (
     BatchIngestRequest,
     BatchIngestItemResult,
     BatchIngestResponse,
+    GraphSearchRequest,
+    GraphSearchResponse,
+    GraphSearchResult,
     GraphStatsResponse,
     IngestRequest,
     IngestResponse,
@@ -773,6 +776,113 @@ async def get_graph_data():
         raise HTTPException(status_code=500, detail=f"Failed to retrieve graph data: {exc}")
 
 
+@app.get("/graph/nodes/{node_id}/provenance", dependencies=[Depends(require_api_key)])
+async def get_node_provenance(node_id: str):
+    """
+    Return the full derivation chain for a node — why the graph believes it.
+
+    For a synthesized node, walks backwards through its `derivation` record
+    (source node IDs, the contradiction Critic flagged, Synthesizer's
+    reasoning, and which resolution loop iteration produced it), recursing
+    into any source node that is itself synthesized. Raw/bridge nodes have no
+    derivation and are returned as a single-node chain with derivation=None.
+    """
+    try:
+        node = knowledge_store.get_node(node_id)
+        if node is None:
+            raise HTTPException(status_code=404, detail=f"Node {node_id} not found")
+
+        visited: set = set()
+
+        def build_trace(current_id: str, depth: int = 0) -> Optional[Dict[str, Any]]:
+            if current_id in visited or depth > 10:
+                return None
+            visited.add(current_id)
+
+            current = knowledge_store.get_node(current_id)
+            if current is None:
+                return {
+                    "id": current_id,
+                    "concept": None,
+                    "node_type": None,
+                    "found": False,
+                    "derivation": None,
+                    "sources": [],
+                }
+
+            derivation = current.get("derivation")
+            sources = []
+            if derivation:
+                for source_id in derivation.get("source_node_ids", []):
+                    child = build_trace(source_id, depth + 1)
+                    if child:
+                        sources.append(child)
+
+            return {
+                "id": current["id"],
+                "concept": current["concept"],
+                "node_type": current["node_type"],
+                "found": True,
+                "derivation": derivation,
+                "sources": sources,
+            }
+
+        trace = build_trace(node_id)
+        return {"node_id": node_id, "trace": trace}
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error building provenance trace for node %s", node_id)
+        raise HTTPException(status_code=500, detail=f"Failed to build provenance trace: {exc}")
+
+
+@app.post("/graph/search", response_model=GraphSearchResponse, dependencies=[Depends(require_api_key)])
+async def search_graph(request: GraphSearchRequest):
+    """Semantic search over knowledge graph nodes using embedding similarity."""
+    try:
+        query = sanitize_text(request.query, MAX_QUERY_CHARS)
+        if not query:
+            raise HTTPException(status_code=400, detail="Query is empty after sanitization")
+
+        llm_client = get_llm_client()
+        query_embedding = await run_in_threadpool(llm_client.embed_text, query)
+
+        raw_results = await run_in_threadpool(
+            knowledge_store.search_similar,
+            query_embedding,
+            request.top_k,
+            request.threshold,
+        )
+
+        # Optional node_type filter
+        if request.node_types:
+            allowed = set(request.node_types)
+            raw_results = [n for n in raw_results if n.get("node_type") in allowed]
+
+        results = [
+            GraphSearchResult(
+                id=n["id"],
+                concept=n["concept"],
+                summary=n["summary"],
+                source=n.get("source", ""),
+                node_type=n.get("node_type", "raw"),
+                confidence=float(n.get("confidence", 1.0)),
+                similarity=round(float(n.get("similarity", 0.0)), 4),
+                connected_to=n.get("connected_to", []),
+            )
+            for n in raw_results
+        ]
+
+        return GraphSearchResponse(query=query, results=results, total=len(results))
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error searching graph")
+        raise HTTPException(status_code=500, detail=f"Failed to search graph: {exc}")
+
+
 @app.get("/graph/stats", response_model=GraphStatsResponse, dependencies=[Depends(require_api_key)])
 async def get_graph_stats():
     """Return current graph statistics."""
@@ -807,6 +917,11 @@ async def get_graph_stats():
             reverse=True,
         )
 
+        optimization_summary = None
+        llm_client = get_llm_client()
+        if hasattr(llm_client, "session"):
+            optimization_summary = llm_client.session.summary()
+
         return GraphStatsResponse(
             node_count=len(nodes),
             edge_count=edge_count,
@@ -815,6 +930,7 @@ async def get_graph_stats():
             raw_count=raw_count,
             bridge_count=bridge_count,
             sources=sources,
+            optimization=optimization_summary,
         )
     except Exception as exc:
         logger.exception("Error getting graph stats")

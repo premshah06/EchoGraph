@@ -11,6 +11,7 @@ from typing import Dict, List
 from backend.events import emit_event
 from backend.knowledge_store import KnowledgeStore
 from backend.llm_client import get_llm_client
+from backend.retry import with_retry
 from backend.state import EchoState
 
 logger = logging.getLogger(__name__)
@@ -96,7 +97,7 @@ REASON: <the specific logical incompatibility, or N/A>
 CREDIBILITY: <which source is more credible and why, or N/A>
 """
 
-                parsed = _parse_contradiction_response(llm_client.invoke(contradiction_prompt))
+                parsed = _parse_contradiction_response(with_retry(llm_client.invoke, contradiction_prompt, agent="critic"))
                 is_contradiction = parsed["contradiction"] == "yes"
 
                 if not is_contradiction:

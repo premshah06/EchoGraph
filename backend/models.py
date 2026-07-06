@@ -282,6 +282,33 @@ class SourceStat(BaseModel):
     avg_confidence: float
 
 
+class GraphSearchRequest(BaseModel):
+    """Request model for semantic graph search."""
+    query: str = Field(..., min_length=1, max_length=500)
+    top_k: int = Field(default=10, ge=1, le=50)
+    threshold: float = Field(default=0.3, ge=0.0, le=1.0)
+    node_types: Optional[List[str]] = Field(default=None, description="Filter by node type")
+
+
+class GraphSearchResult(BaseModel):
+    """A single node result from graph search."""
+    id: str
+    concept: str
+    summary: str
+    source: str
+    node_type: str
+    confidence: float
+    similarity: float
+    connected_to: List[str] = []
+
+
+class GraphSearchResponse(BaseModel):
+    """Response model for graph search."""
+    query: str
+    results: List[GraphSearchResult]
+    total: int
+
+
 class GraphStatsResponse(BaseModel):
     """Response model for graph statistics."""
 
@@ -292,3 +319,4 @@ class GraphStatsResponse(BaseModel):
     raw_count: int = 0
     bridge_count: int = 0
     sources: List[SourceStat] = []
+    optimization: Optional[Dict[str, Any]] = None
