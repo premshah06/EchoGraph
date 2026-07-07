@@ -204,7 +204,4 @@ docs/
   architecture/diagram.html  Rendered diagram (regenerate via /update-architecture-diagram)
 ```
 
-The original build-out task checklist is preserved at
-[.kiro/specs/echosystem-multi-agent-kb/tasks.md](.kiro/specs/echosystem-multi-agent-kb/tasks.md)
-for historical reference; `docs/features.md` is the actively maintained backlog
-for everything built since.
+`docs/features.md` is the actively maintained feature backlog and design log.
