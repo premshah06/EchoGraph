@@ -10,7 +10,7 @@ from typing import Dict, List, Optional
 
 from backend.events import emit_event
 from backend.llm_client import get_llm_client
-from backend.retry import with_retry
+from backend.retry import default_circuit_breaker, default_rate_limiter, with_retry
 from backend.state import EchoState
 
 logger = logging.getLogger(__name__)
@@ -109,7 +109,10 @@ def philosopher_node(state: EchoState) -> EchoState:
         # Connect each new concept to likely overlapping existing nodes.
         for new_concept in new_concepts:
             for existing_node in existing_nodes:
-                response = with_retry(llm_client.invoke, _relationship_prompt(new_concept, existing_node), agent="philosopher")
+                response = with_retry(
+                    llm_client.invoke, _relationship_prompt(new_concept, existing_node), agent="philosopher",
+                    rate_limiter=default_rate_limiter, circuit_breaker=default_circuit_breaker,
+                )
                 parsed = _parse_relationship(response)
                 if not parsed or parsed["strength"] < 0.3:
                     continue
@@ -137,7 +140,10 @@ def philosopher_node(state: EchoState) -> EchoState:
         for i in range(len(new_concepts)):
             concept_a = new_concepts[i]
             for concept_b in new_concepts[i + 1 :]:
-                response = with_retry(llm_client.invoke, _relationship_prompt(concept_a, concept_b), agent="philosopher")
+                response = with_retry(
+                    llm_client.invoke, _relationship_prompt(concept_a, concept_b), agent="philosopher",
+                    rate_limiter=default_rate_limiter, circuit_breaker=default_circuit_breaker,
+                )
                 parsed = _parse_relationship(response)
                 if not parsed or parsed["strength"] < 0.3:
                     continue

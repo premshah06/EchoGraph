@@ -11,7 +11,7 @@ from typing import Dict, List
 from backend.events import emit_event
 from backend.knowledge_store import KnowledgeStore
 from backend.llm_client import get_llm_client
-from backend.retry import with_retry
+from backend.retry import default_circuit_breaker, default_rate_limiter, with_retry
 from backend.state import EchoState
 
 logger = logging.getLogger(__name__)
@@ -106,7 +106,10 @@ CONFIDENCE: <0.0-1.0 — be honest; low confidence is valid when evidence is gen
 REASONING: <what makes this synthesis valid despite the conflict>
 """
 
-            parsed = _parse_synthesis_response(with_retry(llm_client.invoke, synthesis_prompt, agent="synthesizer"))
+            parsed = _parse_synthesis_response(with_retry(
+                llm_client.invoke, synthesis_prompt, agent="synthesizer",
+                rate_limiter=default_rate_limiter, circuit_breaker=default_circuit_breaker,
+            ))
             resolution = {
                 "contradiction_id": f"{contradiction['old_node_id']}_{contradiction['new_concept_id']}",
                 "synthesis_text": parsed["synthesis_text"],

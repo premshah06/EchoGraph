@@ -500,7 +500,14 @@ async def health_check():
 
     graphs_status = "compiled" if (ingestion_graph is not None and query_graph is not None) else "not_compiled"
 
-    overall_ok = store_status == "connected" and graphs_status == "compiled"
+    from backend.retry import default_circuit_breaker
+    circuit_status = default_circuit_breaker.status()
+
+    overall_ok = (
+        store_status == "connected"
+        and graphs_status == "compiled"
+        and circuit_status["state"] != "open"
+    )
 
     return JSONResponse(
         status_code=200 if overall_ok else 503,
@@ -509,6 +516,7 @@ async def health_check():
             "knowledge_store": store_status,
             "graphs": graphs_status,
             "demo_mode": demo_mode_enabled,
+            "llm_circuit_breaker": circuit_status,
         },
     )
 
@@ -881,6 +889,35 @@ async def get_node_provenance(node_id: str):
     except Exception as exc:
         logger.exception("Error building provenance trace for node %s", node_id)
         raise HTTPException(status_code=500, detail=f"Failed to build provenance trace: {exc}")
+
+
+@app.post("/audit/confidence", dependencies=[Depends(require_api_key)])
+async def audit_confidence(sample_size: Optional[int] = None):
+    """
+    Independently judge whether Synthesizer's self-reported confidence on
+    already-synthesized nodes is well-calibrated. Re-derives each
+    contradiction from the node's stored provenance and asks a fresh LLM call
+    to score it blind, then reports the gap against Synthesizer's original
+    confidence.
+
+    Not part of the ingestion hot path — run on-demand (e.g. periodically, or
+    before reviewing what the graph has concluded). Costs one extra LLM call
+    per synthesized node audited; pass sample_size to cap it.
+    """
+    if demo_mode_enabled:
+        raise HTTPException(
+            status_code=403,
+            detail="Confidence auditing requires a real LLM and is disabled in demo mode.",
+        )
+
+    try:
+        from backend.audit.confidence_auditor import run_audit
+
+        summary = await run_in_threadpool(run_audit, knowledge_store, sample_size)
+        return summary
+    except Exception as exc:
+        logger.exception("Error running confidence audit")
+        raise HTTPException(status_code=500, detail=f"Failed to run confidence audit: {exc}")
 
 
 @app.post("/graph/search", response_model=GraphSearchResponse, dependencies=[Depends(require_api_key)])

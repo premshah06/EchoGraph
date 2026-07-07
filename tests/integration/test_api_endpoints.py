@@ -304,6 +304,53 @@ def test_provenance_endpoint_returns_404_for_unknown_node(monkeypatch):
     assert response.status_code == 404
 
 
+def test_audit_confidence_endpoint_returns_summary(monkeypatch):
+    class FakeJudgeLLM:
+        def invoke(self, _prompt: str) -> str:
+            return "CONFIDENCE: 0.4\nREASONING: The evidence is weaker than claimed."
+
+    monkeypatch.setattr(
+        "backend.audit.confidence_auditor.get_llm_client",
+        lambda: FakeJudgeLLM(),
+    )
+
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post("/audit/confidence")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["audited_count"] == 1  # only node-2 has a derivation
+    assert payload["results"][0]["node_id"] == "node-2"
+    assert payload["results"][0]["direction"] == "overconfident"
+
+
+def test_audit_confidence_endpoint_disabled_in_demo_mode(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = True
+        response = client.post("/audit/confidence")
+
+    assert response.status_code == 403
+
+
+def test_audit_confidence_endpoint_respects_sample_size(monkeypatch):
+    class FakeJudgeLLM:
+        def invoke(self, _prompt: str) -> str:
+            return "CONFIDENCE: 0.9\nREASONING: ok"
+
+    monkeypatch.setattr(
+        "backend.audit.confidence_auditor.get_llm_client",
+        lambda: FakeJudgeLLM(),
+    )
+
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post("/audit/confidence?sample_size=0")
+
+    assert response.status_code == 200
+    assert response.json()["audited_count"] == 0
+
+
 def test_reset_endpoint(monkeypatch):
     with build_client(monkeypatch) as client:
         response = client.delete("/graph/reset")
@@ -449,6 +496,34 @@ def test_health_check_reports_degraded_when_store_unreachable(monkeypatch):
     payload = response.json()
     assert payload["status"] == "degraded"
     assert payload["knowledge_store"] == "unreachable"
+
+
+def test_health_check_reports_circuit_breaker_status(monkeypatch):
+    with build_client(monkeypatch) as client:
+        response = client.get("/health")
+
+    payload = response.json()
+    assert "llm_circuit_breaker" in payload
+    assert payload["llm_circuit_breaker"]["state"] == "closed"
+
+
+def test_health_check_degrades_when_circuit_breaker_open(monkeypatch):
+    from backend.retry import default_circuit_breaker
+
+    original_state = (default_circuit_breaker._consecutive_failures, default_circuit_breaker._opened_at)
+    try:
+        for _ in range(default_circuit_breaker.failure_threshold):
+            default_circuit_breaker.record_failure()
+
+        with build_client(monkeypatch) as client:
+            response = client.get("/health")
+
+        assert response.status_code == 503
+        payload = response.json()
+        assert payload["status"] == "degraded"
+        assert payload["llm_circuit_breaker"]["state"] == "open"
+    finally:
+        default_circuit_breaker._consecutive_failures, default_circuit_breaker._opened_at = original_state
 
 
 def test_response_includes_request_id_header(monkeypatch):

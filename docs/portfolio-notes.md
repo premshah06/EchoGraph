@@ -226,3 +226,65 @@ user-facing path actually benefits from it.
   tokens arrive
 - `tests/unit/test_streaming.py`, additions to `tests/unit/test_agents.py`
 - Status detail: `docs/features.md` (#5)
+
+---
+
+## 2026-07-07 — Confidence auditor + rate limiter/circuit breaker, and catching my own bug before it shipped
+
+**What I built:** Two features closing out the original feature backlog. An
+LLM-as-judge confidence auditor that independently re-scores Synthesizer's
+already-published resolutions and reports the calibration gap. And a
+token-bucket rate limiter + circuit breaker layered onto the existing retry
+handler, so the app proactively throttles outbound OpenAI calls instead of
+just reacting to 429s, and stops hammering a downed API after repeated
+failures instead of retrying into a wall.
+
+**The correction worth highlighting:** the original feature spec said the
+circuit breaker should "trip to demo-mode" on sustained failure. I pushed back
+on that during design — `DemoLLMClient` returns scripted, fabricated content.
+Silently rerouting a real ingestion through it after an outage means a user
+gets fake answers with no signal that anything degraded. I built it to fail
+fast and loud instead (a clear `CircuitOpenError`, surfaced via `/health`),
+which is the more honest failure mode even though it's less "self-healing"
+sounding on paper.
+
+**The bug I caught mid-build:** my first pass had `with_retry()` default its
+new `rate_limiter`/`circuit_breaker` parameters to the shared global
+singletons, on the theory that agents would get protection "for free" with no
+call-site changes. Running the existing retry test suite afterward, a file
+that normally finishes in under a second took **15 minutes**. Root cause: 9
+unrelated `with_retry` calls in that test file were now silently sharing one
+rate-limiter bucket and one circuit breaker — token exhaustion and
+failure-count state leaked across tests that had nothing to do with each
+other. The fix was to make the shared state strictly opt-in: `with_retry`
+defaults both params to `None`, and every real call site explicitly passes
+the shared singletons. A few more lines at each of the 7 call sites, but no
+more invisible global state silently changing behavior for callers who never
+asked for it — which is exactly the class of bug that had just bitten me.
+
+**Why this is worth talking about:** two separate examples of the same
+underlying instinct — noticing when a "convenient" design choice (silently
+defaulting to demo-mode, silently defaulting to shared global state) trades
+correctness or predictability for less typing, and choosing the more explicit,
+more honest option instead. Also a good demonstration of actually running the
+existing test suite after a change and taking a 15-minute regression
+seriously rather than shrugging it off as "probably fine."
+
+**Possible framings:**
+- Resume bullet: *"Built an LLM-as-judge confidence auditor and a rate-limited,
+  circuit-breaking resilience layer for outbound LLM calls; caught and fixed a
+  self-introduced global-state test-isolation bug that had silently turned a
+  sub-second test file into a 15-minute one."*
+- Interview talking point: a real example of pushing back on a feature's
+  literal spec ("trip to demo-mode") when it conflicts with an honesty/safety
+  principle, and a concrete before/after story about global mutable state
+  causing invisible test interference.
+
+**Artifacts from this work:**
+- `backend/audit/confidence_auditor.py`, `POST /audit/confidence`
+- `backend/retry.py` — `TokenBucketRateLimiter`, `CircuitBreaker`,
+  `default_rate_limiter`/`default_circuit_breaker`
+- `GET /health` — `llm_circuit_breaker` status field
+- `tests/unit/test_confidence_auditor.py`, 16 new tests in
+  `tests/unit/test_retry.py`, additions to `tests/integration/test_api_endpoints.py`
+- Status detail: `docs/features.md` (#2, #7)

@@ -51,7 +51,7 @@ matter" story: the harness caught a bug within minutes of its first run.
 New test coverage: `tests/unit/test_eval_harness.py` (12 tests covering
 fixture loading and scorer logic in isolation, no LLM calls required).
 
-### 2. LLM-as-Judge Confidence Auditor  `[ ]`
+### 2. LLM-as-Judge Confidence Auditor  `[x]`
 **What:** A meta-agent that samples Synthesizer resolutions and independently
 grades whether the assigned confidence matches actual synthesis quality —
 surfacing over/under-confident outputs. Feeds a calibration curve into the Stats
@@ -62,6 +62,27 @@ models are bad at self-assessing confidence. Directly extends the existing
 **Hooks into:** `should_loop_back` in `backend/graphs/ingestion_graph.py`
 already keys on `confidence < 0.6` — this audits whether that threshold is
 meaningful.
+
+**Status (2026-07-07):** Done. Built `backend/audit/confidence_auditor.py` —
+re-reads already-synthesized nodes from the knowledge store, reconstructs each
+original contradiction from the node's `derivation` record (source node IDs,
+contradiction reason, credibility assessment — the same field added for the
+provenance ledger), and asks a fresh LLM call to independently score its own
+confidence blind, without seeing Synthesizer's original number. The gap
+between the two is the calibration signal: `direction` is
+`overconfident`/`underconfident`/`well_calibrated`, and a gap ≥ 0.25 is
+flagged `is_miscalibrated`.
+
+Deliberately **not** wired into the ingestion pipeline — auditing costs an
+extra LLM call per resolution and most resolutions are never scrutinized by a
+human, so it runs on-demand via `POST /audit/confidence` (optional
+`sample_size` query param to cap cost), the same separation-of-concerns
+pattern as the eval harness. Returns per-node results plus aggregate stats
+(mean gap, miscalibration rate, most-overconfident node).
+
+New test coverage: `tests/unit/test_confidence_auditor.py` (10 tests) plus 3
+endpoint tests in `tests/integration/test_api_endpoints.py` (audit summary
+shape, disabled in demo mode, `sample_size` respected).
 
 ### 3. Multi-Model Router with Cost/Quality Tiering  `[x]`
 **What:** Route each agent to a model tier by task difficulty — cheap/fast model
@@ -228,7 +249,7 @@ table) and 4 in `tests/integration/test_api_endpoints.py` (duplicate detection
 on `/ingest/document`, different content isn't flagged, duplicate within the
 same batch, duplicate against an earlier separate ingestion).
 
-### 7. Rate-Limited, Circuit-Breaking LLM Layer  `[ ]`
+### 7. Rate-Limited, Circuit-Breaking LLM Layer  `[x]`
 **What:** Extend the existing `with_retry` into a full resilience layer —
 token-bucket rate limiting, a circuit breaker that trips to demo-mode on
 sustained OpenAI failure, exposed via `/health`.
@@ -237,6 +258,41 @@ on degradation — this completes the resilience story into something genuinely
 "production-grade."
 **Hooks into:** `backend/retry.py` (already exists), `backend/llm_client.py`,
 `/health`.
+
+**Status (2026-07-07):** Done, with one deliberate correction to the original
+description: the circuit breaker does **not** trip to demo-mode. `DemoLLMClient`
+returns scripted/fake content — silently routing a real ingestion through it
+after an outage would fabricate answers without the caller knowing, which is
+worse than failing loudly. Instead, an open circuit fails fast with a clear
+`CircuitOpenError` and no wasted retry attempts against a downed API; it
+half-opens after a cooldown to test recovery, closing again on success.
+
+Added to `backend/retry.py`: `TokenBucketRateLimiter` (global, shared across
+all agents — OpenAI enforces rate limits per API key, not per calling code,
+so per-agent buckets wouldn't reflect the real constraint) and `CircuitBreaker`
+(opens after 5 consecutive failures, 30s reset window). Both are exposed as
+`default_rate_limiter`/`default_circuit_breaker` singletons.
+
+`with_retry()` accepts them as optional `rate_limiter`/`circuit_breaker`
+params, **defaulting to `None`** rather than the shared singletons — every
+real agent call site (`critic`, `philosopher` ×2, `librarian`, `synthesizer`,
+`scholar`, `confidence_auditor`) explicitly passes the shared instances to opt
+in. This was a real, caught-in-the-act design correction: defaulting to shared
+global state initially seemed convenient (agents get protection "for free"),
+but it caused `tests/unit/test_retry.py`'s 9 unrelated `with_retry` calls to
+silently share one rate-limiter bucket and one circuit breaker — token
+exhaustion and failure-count bleed between tests blew the file's runtime from
+under a second to **15 minutes**. Fixed by making the shared state opt-in and
+explicit at each call site instead of an invisible default.
+
+`GET /health` now reports `llm_circuit_breaker: {state, consecutive_failures}`
+and treats an open circuit as a 503-degraded condition, alongside the existing
+ChromaDB/graph-compilation checks.
+
+New test coverage: 16 tests added to `tests/unit/test_retry.py`
+(`TokenBucketRateLimiter`, `CircuitBreaker`, and `with_retry`'s integration
+with both — including a regression guard asserting the defaults stay `None`)
+plus 2 new `/health` endpoint tests.
 
 ---
 
@@ -249,5 +305,9 @@ a single narrative. Strong LinkedIn post + three of the strongest AI-engineering
 resume bullets. Start with **#1**, since the eval harness also de-risks building
 #3 and #4 (you can measure that they didn't break anything).
 
-**Status as of 2026-07-06:** #1, #3, #4, #5, and #6 are done. Remaining: #2
-(LLM judge auditor), #7 (rate limit/circuit breaker).
+**Status as of 2026-07-07:** All 7 features are done. Frontend surfacing is
+the remaining gap for several: #3 (cost/savings), #6 (duplicate ingestion
+indicator), #2 (calibration view), and #7 (circuit-breaker status) all have
+working backends with no dedicated UI yet — #4 (provenance) and #5
+(streaming) already have frontend surfaces. A consolidated frontend pass
+covering the remaining four is the next planned step.

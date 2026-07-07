@@ -6,6 +6,15 @@ Three error classes with different strategies:
   Parse      — malformed LLM output          → retry immediately (different seed)
   Fatal      — auth errors, bad requests     → fail fast, no retry
 
+Also provides a proactive token-bucket rate limiter (throttles calls before
+they're sent, rather than only reacting to a 429 after the fact) and a
+circuit breaker (stops hammering a downed OpenAI API after repeated failures,
+failing fast with a clear error instead of retrying into a wall). Neither
+silently falls back to DemoLLMClient's scripted responses — a real ingestion
+that quietly started returning fabricated content without the caller knowing
+would be actively misleading, so the circuit breaker's job is to fail loudly,
+not fake success.
+
 Usage
 -----
 from backend.retry import with_retry
@@ -17,6 +26,7 @@ from __future__ import annotations
 
 import logging
 import random
+import threading
 import time
 from typing import Any, Callable, Optional, Tuple
 
@@ -29,6 +39,130 @@ CALL_TIMEOUT_SECONDS = 30
 BACKOFF_BASE    = 0.4   # seconds
 BACKOFF_MAX     = 8.0   # seconds ceiling
 JITTER_RANGE    = 0.3   # ± random fraction of the wait
+
+# Circuit breaker: open after this many consecutive failures, half-open
+# (try one real call) after this many seconds of staying open.
+CIRCUIT_FAILURE_THRESHOLD = 5
+CIRCUIT_RESET_SECONDS = 30.0
+
+# Token bucket: shared across all agents, since OpenAI enforces rate limits
+# per API key, not per calling code — a per-agent bucket wouldn't reflect
+# the real constraint. Refill continuously at rate_per_second.
+DEFAULT_BUCKET_CAPACITY = 10.0
+DEFAULT_REFILL_PER_SECOND = 3.0
+
+
+class CircuitOpenError(Exception):
+    """Raised immediately (no retry) when the circuit breaker is open."""
+
+
+class CircuitBreaker:
+    """
+    Tracks consecutive LLM call failures. After CIRCUIT_FAILURE_THRESHOLD
+    consecutive failures, the circuit opens: further calls raise
+    CircuitOpenError immediately without attempting the network call, until
+    CIRCUIT_RESET_SECONDS have passed, at which point one call is allowed
+    through (half-open) to test recovery. A success closes the circuit and
+    resets the failure count; a half-open failure re-opens it.
+    """
+
+    def __init__(self, failure_threshold: int = CIRCUIT_FAILURE_THRESHOLD, reset_seconds: float = CIRCUIT_RESET_SECONDS):
+        self.failure_threshold = failure_threshold
+        self.reset_seconds = reset_seconds
+        self._lock = threading.Lock()
+        self._consecutive_failures = 0
+        self._opened_at: Optional[float] = None
+
+    @property
+    def is_open(self) -> bool:
+        with self._lock:
+            return self._state_locked() == "open"
+
+    def _state_locked(self) -> str:
+        """Caller must hold self._lock."""
+        if self._opened_at is None:
+            return "closed"
+        if time.time() - self._opened_at >= self.reset_seconds:
+            return "half_open"
+        return "open"
+
+    def before_call(self) -> None:
+        """Raise CircuitOpenError if the circuit is open; no-op otherwise."""
+        with self._lock:
+            state = self._state_locked()
+            if state == "open":
+                remaining = self.reset_seconds - (time.time() - self._opened_at)
+                raise CircuitOpenError(
+                    f"Circuit breaker open after {self._consecutive_failures} consecutive failures; "
+                    f"retry in {max(0.0, remaining):.0f}s"
+                )
+            # half_open: allow this one call through as a recovery probe.
+
+    def record_success(self) -> None:
+        with self._lock:
+            self._consecutive_failures = 0
+            self._opened_at = None
+
+    def record_failure(self) -> None:
+        with self._lock:
+            self._consecutive_failures += 1
+            if self._consecutive_failures >= self.failure_threshold:
+                self._opened_at = time.time()
+                logger.error(
+                    "circuit_breaker.open after %d consecutive failures",
+                    self._consecutive_failures,
+                )
+
+    def status(self) -> dict:
+        with self._lock:
+            return {
+                "state": self._state_locked(),
+                "consecutive_failures": self._consecutive_failures,
+            }
+
+
+class TokenBucketRateLimiter:
+    """
+    Classic token bucket: holds up to `capacity` tokens, refilling
+    continuously at `refill_per_second`. Each call consumes one token;
+    if none are available, blocks (sleeps) until one refills rather than
+    sending the request and hoping OpenAI doesn't 429 it.
+    """
+
+    def __init__(self, capacity: float = DEFAULT_BUCKET_CAPACITY, refill_per_second: float = DEFAULT_REFILL_PER_SECOND):
+        self.capacity = capacity
+        self.refill_per_second = refill_per_second
+        self._lock = threading.Lock()
+        self._tokens = capacity
+        self._last_refill = time.time()
+
+    def _refill_locked(self) -> None:
+        now = time.time()
+        elapsed = now - self._last_refill
+        self._tokens = min(self.capacity, self._tokens + elapsed * self.refill_per_second)
+        self._last_refill = now
+
+    def acquire(self) -> float:
+        """Block until a token is available; returns seconds waited."""
+        waited = 0.0
+        while True:
+            with self._lock:
+                self._refill_locked()
+                if self._tokens >= 1.0:
+                    self._tokens -= 1.0
+                    return waited
+                deficit = 1.0 - self._tokens
+                sleep_for = deficit / self.refill_per_second
+
+            time.sleep(sleep_for)
+            waited += sleep_for
+
+
+# Module-level singletons: the whole process shares one bucket/breaker, since
+# they model a real shared constraint (one OpenAI API key's rate limit and
+# one upstream service's health), not per-call or per-agent state.
+default_rate_limiter = TokenBucketRateLimiter()
+default_circuit_breaker = CircuitBreaker()
 
 
 def _classify(exc: Exception) -> str:
@@ -85,10 +219,19 @@ def with_retry(
     max_attempts: int = 3,
     parse_max_attempts: int = 2,
     timeout: Optional[float] = CALL_TIMEOUT_SECONDS,
+    rate_limiter: Optional[TokenBucketRateLimiter] = None,
+    circuit_breaker: Optional[CircuitBreaker] = None,
     **kwargs: Any,
 ) -> Any:
     """
-    Call fn(*args, **kwargs) with error-type-aware retry logic.
+    Call fn(*args, **kwargs) with error-type-aware retry logic, and
+    optionally proactive rate limiting / circuit breaking.
+
+    rate_limiter and circuit_breaker default to None (disabled) so this
+    function's behavior is unchanged for existing callers and tests — pass
+    backend.retry.default_rate_limiter / default_circuit_breaker explicitly
+    to opt in to the shared, process-wide versions (see get_protected_llm_client
+    for the wrapper agents actually use).
 
     Parameters
     ----------
@@ -98,18 +241,31 @@ def with_retry(
     max_attempts    : Max retries for transient errors
     parse_max_attempts : Max retries for parse errors
     timeout         : Per-call wall-clock timeout in seconds (None = no limit)
+    rate_limiter    : Token bucket consulted before every attempt; None disables (default)
+    circuit_breaker : Breaker consulted before every attempt; None disables (default)
     **kwargs        : Keyword args forwarded to fn
     """
+    if circuit_breaker is not None:
+        circuit_breaker.before_call()
+
     transient_attempts = 0
     parse_attempts     = 0
     last_exc: Optional[Exception] = None
 
     for overall_attempt in range(max_attempts + parse_max_attempts):
         try:
+            if rate_limiter is not None:
+                waited = rate_limiter.acquire()
+                if waited > 0:
+                    logger.info("rate_limit.waited agent=%s seconds=%.2f", agent, waited)
+
             if timeout is not None:
                 result = _call_with_timeout(fn, args, kwargs, timeout)
             else:
                 result = fn(*args, **kwargs)
+
+            if circuit_breaker is not None:
+                circuit_breaker.record_success()
 
             if overall_attempt > 0:
                 logger.info(
@@ -139,6 +295,8 @@ def with_retry(
                         "retry.exhausted agent=%s after %d transient attempts",
                         agent, transient_attempts,
                     )
+                    if circuit_breaker is not None:
+                        circuit_breaker.record_failure()
                     raise
 
                 wait = _backoff_wait(transient_attempts - 1)

@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 
-from backend.retry import _backoff_wait, _classify, with_retry
+from backend.retry import (
+    CircuitBreaker,
+    CircuitOpenError,
+    TokenBucketRateLimiter,
+    _backoff_wait,
+    _classify,
+    with_retry,
+)
 
 
 # ── _classify ──────────────────────────────────────────────────────────────
@@ -147,3 +156,148 @@ class TestWithRetry:
         with caplog.at_level(logging.INFO, logger="backend.retry"):
             with_retry(fn, agent="myagent", max_attempts=3, timeout=None)
         assert any("retry.success" in r.message for r in caplog.records)
+
+
+# ── TokenBucketRateLimiter ──────────────────────────────────────────────────
+
+class TestTokenBucketRateLimiter:
+    def test_acquire_does_not_wait_when_tokens_available(self):
+        limiter = TokenBucketRateLimiter(capacity=5, refill_per_second=1)
+        waited = limiter.acquire()
+        assert waited == 0.0
+
+    def test_acquire_consumes_one_token_per_call(self):
+        limiter = TokenBucketRateLimiter(capacity=2, refill_per_second=100)
+        limiter.acquire()
+        limiter.acquire()
+        assert limiter._tokens < 1.0
+
+    def test_acquire_waits_when_bucket_empty(self):
+        limiter = TokenBucketRateLimiter(capacity=1, refill_per_second=20)
+        limiter.acquire()  # drains the single token
+        start = time.time()
+        waited = limiter.acquire()
+        elapsed = time.time() - start
+        assert waited > 0.0
+        assert elapsed >= waited * 0.5  # sanity: actually slept roughly that long
+
+    def test_refill_replenishes_over_time(self):
+        limiter = TokenBucketRateLimiter(capacity=1, refill_per_second=1000)
+        limiter.acquire()
+        time.sleep(0.01)
+        # after 0.01s at 1000/s refill, ~10 tokens worth accumulated (capped at capacity=1)
+        waited = limiter.acquire()
+        assert waited == 0.0
+
+    def test_capacity_caps_accumulated_tokens(self):
+        limiter = TokenBucketRateLimiter(capacity=2, refill_per_second=1000)
+        time.sleep(0.01)
+        limiter._refill_locked()
+        assert limiter._tokens <= 2.0
+
+
+# ── CircuitBreaker ───────────────────────────────────────────────────────────
+
+class TestCircuitBreaker:
+    def test_starts_closed(self):
+        breaker = CircuitBreaker()
+        assert breaker.is_open is False
+        breaker.before_call()  # should not raise
+
+    def test_opens_after_threshold_consecutive_failures(self):
+        breaker = CircuitBreaker(failure_threshold=3, reset_seconds=60)
+        breaker.record_failure()
+        breaker.record_failure()
+        assert breaker.is_open is False
+        breaker.record_failure()
+        assert breaker.is_open is True
+
+    def test_before_call_raises_when_open(self):
+        breaker = CircuitBreaker(failure_threshold=1, reset_seconds=60)
+        breaker.record_failure()
+        with pytest.raises(CircuitOpenError):
+            breaker.before_call()
+
+    def test_success_resets_failure_count(self):
+        breaker = CircuitBreaker(failure_threshold=3, reset_seconds=60)
+        breaker.record_failure()
+        breaker.record_failure()
+        breaker.record_success()
+        assert breaker.status()["consecutive_failures"] == 0
+        breaker.record_failure()
+        breaker.record_failure()
+        assert breaker.is_open is False  # only 2 since reset, threshold is 3
+
+    def test_half_opens_after_reset_window(self):
+        breaker = CircuitBreaker(failure_threshold=1, reset_seconds=0.05)
+        breaker.record_failure()
+        assert breaker.is_open is True
+        time.sleep(0.06)
+        assert breaker.is_open is False  # half-open — before_call should allow through
+        breaker.before_call()  # should not raise
+
+    def test_status_reports_state_and_failure_count(self):
+        breaker = CircuitBreaker(failure_threshold=5, reset_seconds=60)
+        breaker.record_failure()
+        breaker.record_failure()
+        status = breaker.status()
+        assert status["state"] == "closed"
+        assert status["consecutive_failures"] == 2
+
+
+# ── with_retry integration with rate_limiter / circuit_breaker ─────────────
+
+class TestWithRetryProtections:
+    def test_defaults_disable_both_protections(self):
+        """Regression guard: with_retry must NOT default to shared global
+        state, since that caused unrelated tests to interfere with each
+        other (rate-limiter token exhaustion, circuit-breaker trips leaking
+        across tests) and blew up this file's runtime from <1s to 15+ minutes."""
+        import inspect
+        sig = inspect.signature(with_retry)
+        assert sig.parameters["rate_limiter"].default is None
+        assert sig.parameters["circuit_breaker"].default is None
+
+    def test_with_retry_respects_open_circuit_breaker(self):
+        breaker = CircuitBreaker(failure_threshold=1, reset_seconds=60)
+        breaker.record_failure()
+
+        def fn():
+            return "should not be called"
+
+        with pytest.raises(CircuitOpenError):
+            with_retry(fn, agent="test", timeout=None, circuit_breaker=breaker)
+
+    def test_with_retry_records_success_on_breaker(self):
+        breaker = CircuitBreaker(failure_threshold=3, reset_seconds=60)
+
+        def fn():
+            return "ok"
+
+        with_retry(fn, agent="test", timeout=None, circuit_breaker=breaker)
+
+        assert breaker.status()["consecutive_failures"] == 0
+
+    def test_with_retry_records_failure_on_breaker_after_exhausting_retries(self):
+        breaker = CircuitBreaker(failure_threshold=5, reset_seconds=60)
+
+        def fn():
+            raise Exception("rate limit exceeded")
+
+        with pytest.raises(Exception):
+            with_retry(fn, agent="test", max_attempts=1, timeout=None, circuit_breaker=breaker)
+
+        assert breaker.status()["consecutive_failures"] == 1
+
+    def test_with_retry_uses_rate_limiter_before_each_attempt(self):
+        limiter = TokenBucketRateLimiter(capacity=10, refill_per_second=1000)
+        calls = []
+
+        def fn():
+            calls.append(1)
+            return "ok"
+
+        with_retry(fn, agent="test", timeout=None, rate_limiter=limiter)
+
+        assert calls == [1]
+        assert limiter._tokens < 10.0

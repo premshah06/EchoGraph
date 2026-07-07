@@ -64,3 +64,5 @@ RESUME_CONTEXT.md
 node_modules/
 package-lock.json
 yarn.lock
+
+.claude/
