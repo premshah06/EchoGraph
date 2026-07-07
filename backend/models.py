@@ -218,7 +218,7 @@ class BatchIngestRequest(BaseModel):
 class BatchIngestItemResult(BaseModel):
     """Result for one document in a batch."""
     source_label: str
-    status: str                  # "success" | "failed" | "skipped"
+    status: str                  # "success" | "failed" | "skipped" | "duplicate"
     nodes_created: int = 0
     edges_created: int = 0
     contradictions_resolved: int = 0

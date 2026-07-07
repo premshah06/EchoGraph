@@ -5,6 +5,7 @@ Handles persistent vector storage for knowledge nodes.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from datetime import datetime, timezone
@@ -17,10 +18,16 @@ from chromadb.config import Settings
 logger = logging.getLogger(__name__)
 
 
+def hash_content(content: str) -> str:
+    """Stable content hash used as the idempotency key for ingestion."""
+    return hashlib.sha256(content.encode("utf-8", errors="ignore")).hexdigest()
+
+
 class KnowledgeStore:
     """Persistent vector database for knowledge nodes with metadata."""
 
     COLLECTION_NAME = "knowledge_nodes"
+    INGESTION_HASHES_COLLECTION_NAME = "ingestion_hashes"
 
     def __init__(self, persist_directory: str = "./echosystem_db"):
         """Initialize persistent ChromaDB client and collection."""
@@ -38,6 +45,14 @@ class KnowledgeStore:
                 "description": "EchoGraph knowledge graph nodes",
                 "hnsw:space": "cosine",
             },
+        )
+
+        # Plain key-value lookup (content hash -> prior ingestion result) used
+        # for idempotent ingestion. No embeddings needed, so it's cheap to
+        # keep as a separate collection rather than overload the vector one.
+        self.ingestion_hashes = self.client.get_or_create_collection(
+            name=self.INGESTION_HASHES_COLLECTION_NAME,
+            metadata={"description": "Content-hash -> prior ingestion result, for dedup"},
         )
 
     @staticmethod
@@ -302,8 +317,48 @@ class KnowledgeStore:
             logger.exception("Error deleting node %s", node_id)
             return False
 
+
+    def find_prior_ingestion(self, content_hash: str) -> Optional[Dict[str, Any]]:
+        """Return the recorded result of a prior ingestion with this content hash, if any."""
+        try:
+            results = self.ingestion_hashes.get(ids=[content_hash], include=["metadatas"])
+            metadatas = results.get("metadatas", [])
+            if not metadatas:
+                return None
+            metadata = metadatas[0]
+            return {
+                "ingestion_id": metadata.get("ingestion_id", ""),
+                "nodes_created": int(metadata.get("nodes_created", 0)),
+                "edges_created": int(metadata.get("edges_created", 0)),
+                "contradictions_resolved": int(metadata.get("contradictions_resolved", 0)),
+                "loops_executed": int(metadata.get("loops_executed", 0)),
+                "ingested_at": metadata.get("ingested_at", ""),
+            }
+        except Exception:
+            logger.exception("Error checking prior ingestion for hash %s", content_hash)
+            return None
+
+    def record_ingestion(self, content_hash: str, result: Dict[str, Any]) -> None:
+        """Record a completed ingestion's result under its content hash for future dedup checks."""
+        try:
+            metadata = {
+                "ingestion_id": str(result.get("ingestion_id", "")),
+                "nodes_created": int(result.get("nodes_created", 0)),
+                "edges_created": int(result.get("edges_created", 0)),
+                "contradictions_resolved": int(result.get("contradictions_resolved", 0)),
+                "loops_executed": int(result.get("loops_executed", 0)),
+                "ingested_at": datetime.now(timezone.utc).isoformat(),
+            }
+            self.ingestion_hashes.upsert(
+                ids=[content_hash],
+                documents=[content_hash],
+                metadatas=[metadata],
+            )
+        except Exception:
+            logger.exception("Error recording ingestion for hash %s", content_hash)
+
     def reset(self) -> None:
-        """Wipe and recreate the knowledge collection."""
+        """Wipe and recreate the knowledge collection and the ingestion-hash dedup table."""
         self.client.delete_collection(self.COLLECTION_NAME)
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME,
@@ -311,4 +366,9 @@ class KnowledgeStore:
                 "description": "EchoGraph knowledge graph nodes",
                 "hnsw:space": "cosine",
             },
+        )
+        self.client.delete_collection(self.INGESTION_HASHES_COLLECTION_NAME)
+        self.ingestion_hashes = self.client.get_or_create_collection(
+            name=self.INGESTION_HASHES_COLLECTION_NAME,
+            metadata={"description": "Content-hash -> prior ingestion result, for dedup"},
         )

@@ -29,7 +29,7 @@ from backend.config import get_settings
 from backend.events import build_event
 from backend.graphs.ingestion_graph import create_ingestion_graph
 from backend.graphs.query_graph import create_query_graph
-from backend.knowledge_store import KnowledgeStore
+from backend.knowledge_store import KnowledgeStore, hash_content
 from backend.llm_client import get_llm_client
 from backend.models import (
     BatchIngestRequest,
@@ -531,6 +531,20 @@ async def ingest_document(request: IngestRequest):
         if not content:
             raise HTTPException(status_code=400, detail="Document content is empty after sanitization")
 
+        content_hash = hash_content(content)
+        prior = await run_in_threadpool(knowledge_store.find_prior_ingestion, content_hash)
+        if prior is not None:
+            logger.info("Ingestion skipped — duplicate content (hash=%s)", content_hash[:12])
+            return IngestResponse(
+                status="duplicate",
+                ingestion_id=prior["ingestion_id"],
+                events_session=session_id,
+                nodes_created=prior["nodes_created"],
+                edges_created=prior["edges_created"],
+                contradictions_resolved=prior["contradictions_resolved"],
+                loops_executed=prior["loops_executed"],
+            )
+
         initial_state = {
             "input_type": "document",
             "raw_content": content,
@@ -564,6 +578,11 @@ async def ingest_document(request: IngestRequest):
             contradictions_resolved=len(result.get("resolutions", [])),
             loops_executed=int(result.get("loop_count", 0)),
         )
+
+        await run_in_threadpool(
+            knowledge_store.record_ingestion, content_hash, response.model_dump()
+        )
+
         return response
 
     except HTTPException:
@@ -647,6 +666,20 @@ async def ingest_batch(request: BatchIngestRequest):
             failed += 1
             continue
 
+        content_hash = hash_content(content)
+        prior = await run_in_threadpool(knowledge_store.find_prior_ingestion, content_hash)
+        if prior is not None:
+            logger.info("Batch item skipped — duplicate content (hash=%s)", content_hash[:12])
+            results.append(BatchIngestItemResult(
+                source_label=source_label,
+                status="duplicate",
+                nodes_created=prior["nodes_created"],
+                edges_created=prior["edges_created"],
+                contradictions_resolved=prior["contradictions_resolved"],
+            ))
+            succeeded += 1
+            continue
+
         try:
             initial_state = {
                 "input_type": "document",
@@ -672,14 +705,27 @@ async def ingest_batch(request: BatchIngestRequest):
 
             result = await run_in_threadpool(ingestion_graph.invoke, initial_state)
 
-            results.append(BatchIngestItemResult(
+            item_result = BatchIngestItemResult(
                 source_label=source_label,
                 status="success",
                 nodes_created=len(result.get("new_concepts", [])) + len(result.get("resolutions", [])),
                 edges_created=len(result.get("connections", [])),
                 contradictions_resolved=len(result.get("resolutions", [])),
-            ))
+            )
+            results.append(item_result)
             succeeded += 1
+
+            await run_in_threadpool(
+                knowledge_store.record_ingestion,
+                content_hash,
+                {
+                    "ingestion_id": str(uuid.uuid4()),
+                    "nodes_created": item_result.nodes_created,
+                    "edges_created": item_result.edges_created,
+                    "contradictions_resolved": item_result.contradictions_resolved,
+                    "loops_executed": int(result.get("loop_count", 0)),
+                },
+            )
 
         except Exception as exc:
             logger.exception("Batch ingest failed for source=%s", source_label)

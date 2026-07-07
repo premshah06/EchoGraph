@@ -134,7 +134,7 @@ handles raw nodes with no derivation, 404s on unknown node ID).
 
 ## Tier 2 — Production-Systems Breadth (SWE / backend signal)
 
-### 5. Streaming Token-Level Agent Output over WebSocket  `[ ]`
+### 5. Streaming Token-Level Agent Output over WebSocket  `[x]`
 **What:** Stream each agent's LLM tokens live to the UI as they generate (not
 just start/end events), with backpressure handling. Turns the event stream into
 a real-time reasoning theater.
@@ -143,12 +143,90 @@ and makes the demo visibly impressive. Builds on the existing
 batching/compaction/replay event protocol.
 **Hooks into:** `backend/events.py`, `emit_event`, existing WebSocket layer.
 
-### 6. Idempotent Ingestion + Content-Hash Deduplication  `[ ]`
+**Status (2026-07-06):** Done, scoped to Scholar's query answer only —
+ingestion agents (Librarian/Philosopher/Critic/Synthesizer) can run many LLM
+calls per document (Philosopher alone is O(concepts × existing nodes)), so
+streaming all of them would flood the pipeline drawer with noise nobody
+watches live. Scholar's answer is the one moment a user is actually staring at
+the screen waiting for text, like ChatGPT's typing effect.
+
+All three LLM clients (`DemoLLMClient`, `LLMClient`, `OptimizedLLMClient`) now
+share a uniform `invoke_streaming(prompt, agent, on_token)` contract:
+- `LLMClient` uses `ChatOpenAI.stream()`.
+- `OptimizedLLMClient` uses the raw OpenAI SDK's `stream=True` +
+  `stream_options={"include_usage": True}` (needed to get token counts back,
+  since streaming responses don't include `.usage` on every chunk) — routing,
+  caching, and cost-metric recording all still apply, identical to the
+  non-streaming path, just with incremental delivery.
+- `DemoLLMClient` has no real model to stream from, so it chunks its scripted
+  response word-by-word to preserve the same callback contract for callers.
+
+`scholar_node` (`backend/agents/scholar.py`) calls `invoke_streaming` instead
+of `invoke`, emitting a new `agent_token` event per chunk via the existing
+`emit_event`/`event_callback` pipeline — no changes needed to
+`ConnectionManager`'s batching/compaction/replay logic, since it already
+accepts arbitrary event dicts.
+
+Frontend (`frontend/js/app.js`): `agent_token` events accumulate into
+`appState.streamingAnswer` and re-render the answer box live via the existing
+`renderAnswerTemplate` (so markdown/citation formatting stays consistent
+during streaming, not just at the end). The HTTP response's own
+`agent_events` replay list explicitly skips `agent_token` entries, since
+`result.answer` is already the final complete text by the time that fires —
+replaying them would flash a partial reconstruction after the real answer.
+
+**Known limitation:** if a transient failure triggers a retry mid-stream (via
+`with_retry`), the UI will see tokens from the failed attempt followed by a
+fresh full stream from the retry, rather than a clean single stream. This is
+inherent to combining retry-on-failure with token streaming and wasn't
+considered worth solving now — it only surfaces on genuine mid-stream network
+failure, which is rare.
+
+New test coverage: `tests/unit/test_streaming.py` (6 tests: demo streaming
+matches non-streaming output, `OptimizedLLMClient` delivers each chunk via
+callback, records correct metrics, actually sets `stream=True` in the request,
+and still routes agents by complexity) plus 3 new tests in
+`tests/unit/test_agents.py` (scholar emits `agent_token` events whose
+concatenation matches the final answer, and a strict test proving scholar
+calls `invoke_streaming` and not plain `invoke`).
+
+### 6. Idempotent Ingestion + Content-Hash Deduplication  `[x]`
 **What:** Hash incoming content; skip or version re-ingested documents; make the
 whole pipeline safe to retry. Return a stable ingestion ID.
 **Why flagship:** Idempotency is a classic "this person builds real systems"
 marker. Batch ingestion already exists (commit `#C`) — this hardens it.
 **Hooks into:** `/ingest/*` endpoints in `backend/main.py`, `store_node`.
+
+**Status (2026-07-06):** Done. Added a module-level `hash_content()` function
+(`backend/knowledge_store.py`, SHA-256 over the sanitized document text —
+deliberately source-agnostic, so the same text re-submitted under a different
+`source_label` or re-fetched from a mirrored URL still counts as a duplicate)
+and a second ChromaDB collection, `ingestion_hashes`, used purely as a
+content-hash → prior-ingestion-result key-value lookup (no embeddings needed,
+so it's cheap to keep separate from the vector-search collection). New
+`KnowledgeStore` methods: `find_prior_ingestion(hash)`, `record_ingestion(hash,
+result)`; `reset()` now also clears this table so a full graph reset doesn't
+leave stale dedup entries blocking re-ingestion.
+
+Wired into `POST /ingest/document` (and `POST /ingest/url`, which delegates to
+it) and `POST /ingest/batch`: before running the expensive LangGraph pipeline,
+each request checks for a prior ingestion with the same content hash. On a
+match, it returns immediately with `status: "duplicate"` and the original
+ingestion's stats — zero LLM calls, zero new nodes. `IngestResponse`/
+`BatchIngestItemResult.status` now document `"duplicate"` as a valid value
+alongside `"success"`/`"failed"`/`"skipped"`.
+
+One implementation note: `hash_content` had to be a **module-level function**,
+not a method on `KnowledgeStore`, because the test suite monkeypatches
+`main.KnowledgeStore` itself to a lambda constructor — a classmethod call on
+the patched name would break. Keeping the hash function name-independent of
+the class avoids that coupling.
+
+New test coverage: 6 tests in `tests/unit/test_knowledge_store.py` (hash
+determinism, round-trip record/find, upsert-on-same-hash, reset clears the
+table) and 4 in `tests/integration/test_api_endpoints.py` (duplicate detection
+on `/ingest/document`, different content isn't flagged, duplicate within the
+same batch, duplicate against an earlier separate ingestion).
 
 ### 7. Rate-Limited, Circuit-Breaking LLM Layer  `[ ]`
 **What:** Extend the existing `with_retry` into a full resilience layer —
@@ -170,3 +248,6 @@ explainable"* — hitting agentic depth, production maturity, and trust/safety i
 a single narrative. Strong LinkedIn post + three of the strongest AI-engineering
 resume bullets. Start with **#1**, since the eval harness also de-risks building
 #3 and #4 (you can measure that they didn't break anything).
+
+**Status as of 2026-07-06:** #1, #3, #4, #5, and #6 are done. Remaining: #2
+(LLM judge auditor), #7 (rate limit/circuit breaker).

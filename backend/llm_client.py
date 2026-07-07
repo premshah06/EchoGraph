@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import random
 import time
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
@@ -85,6 +85,20 @@ class DemoLLMClient:
 
         return "Processed successfully in demo mode."
 
+    def invoke_streaming(self, prompt: str, agent: str, on_token: Callable[[str], None]) -> str:
+        """
+        No real model to stream from in demo mode — chunk the scripted
+        response word-by-word so callers see the same on_token/return-value
+        contract as the real streaming clients. `agent` is accepted for a
+        uniform call shape across clients but unused (no routing in demo mode).
+        """
+        full_text = self.invoke(prompt)
+        words = full_text.split(" ")
+        for idx, word in enumerate(words):
+            chunk = word if idx == 0 else " " + word
+            on_token(chunk)
+        return full_text
+
 
 class LLMClient:
     """Client for OpenAI LLM and embeddings with lightweight retry logic."""
@@ -158,6 +172,27 @@ class LLMClient:
     def invoke(self, prompt: str) -> str:
         response = self._retry(self.llm.invoke, prompt)
         return response.content
+
+    def invoke_streaming(self, prompt: str, agent: str, on_token: Callable[[str], None]) -> str:
+        """
+        Stream the response token-by-token, calling on_token(chunk) as each
+        arrives, and return the full accumulated text once the stream ends.
+        Retries the whole call on transient failure (partial output from a
+        failed attempt is discarded, not partially delivered twice). `agent`
+        is accepted for a uniform call shape but unused here (no per-agent
+        routing in the non-optimized client).
+        """
+        def _run_stream() -> str:
+            chunks: List[str] = []
+            for chunk in self.llm.stream(prompt):
+                text = chunk.content or ""
+                if not text:
+                    continue
+                chunks.append(text)
+                on_token(text)
+            return "".join(chunks)
+
+        return self._retry(_run_stream)
 
 
 _llm_client: Optional[object] = None

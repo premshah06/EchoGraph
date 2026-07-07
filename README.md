@@ -1,40 +1,52 @@
 # EchoGraph
 
-
-
 EchoGraph is a multi-agent living knowledge base that ingests content, detects contradictions, synthesizes higher-confidence knowledge, and answers questions with source citations.
+
+![EchoGraph Architecture](arch_image.png)
 
 ## What You Get
 
-- FastAPI backend with LangGraph orchestration
-- ChromaDB persistent semantic storage
-- Five agents: Librarian, Philosopher, Critic, Synthesizer, Scholar
-- Real-time WebSocket event stream with batching/compaction/replay
-- Responsive warm-themed frontend with Three.js + d3-force-3d visualization
-- Search with graph focus — multi-field keyword search that highlights and camera-fits all matching nodes
-- Contradiction highlighter — dedicated toolbar mode that dims unrelated edges and shows side-by-side contradiction/resolution pairs
-- Agent pipeline visualizer — live drawer timeline of each agent's decisions during ingestion
-- Node inspector with confidence score, source, connections, and which agents touched each node
-- Node path tracing — click two nodes to highlight the shortest connecting path through the graph
-- Ingest history panel — tracks past ingestion sessions with source, duration, and resulting node/edge counts
-- Demo mode with pre-seeded sample graph when OpenAI key is unavailable
-- Structured JSON logging with per-request correlation IDs (`X-Request-ID`), propagated through agent pipeline execution
-- Real `/health` checks — pings ChromaDB and verifies the agent graphs compiled, returning 503 on a degraded dependency instead of a hardcoded "healthy"
-- Graph JSON export — one-click download of the full knowledge graph (nodes + edges + metadata) via `GET /graph/export` with `Content-Disposition` attachment header
-- Query history panel — persisted in localStorage, click any past query to restore its question and answer in the Query tab
-- Individual node deletion — `DELETE /graph/nodes/{id}` endpoint with automatic edge cleanup, plus a Delete button in the node inspector
-- Confidence threshold filter — range slider in the graph toolbar that hides nodes and their edges below a chosen confidence score in real time
-- Docker production hardening — `HEALTHCHECK` in Dockerfile, CPU/memory resource limits in Compose, configurable `LOG_LEVEL` and `WORKERS` env vars
-- Source credibility breakdown — Stats tab shows each ingested source with node count, relative bar, and average confidence score
-- Edge strength visualization — relationship strength (from Philosopher agent) is now persisted and rendered as edge opacity; strong connections are bright, weak ones are subtle
+### Core Architecture
 
-![EchoGraph Architecture](arch_image.png)
+- FastAPI backend with LangGraph orchestration (ingestion graph + query graph)
+- Five agents: Librarian, Philosopher, Critic, Synthesizer, Scholar — with a confidence-gated Critic ↔ Synthesizer contradiction-resolution loop
+- ChromaDB persistent semantic storage
+- Real-time WebSocket event stream with batching/compaction/replay
+- Demo mode with pre-seeded sample graph when no OpenAI key is configured
+
+### Agentic Engineering
+
+- **Evaluation harness** (`backend/eval/`) — runs golden documents through the real ingestion/query pipelines and scores concept recall, contradiction detection, and confidence calibration against labeled expectations (`python -m backend.eval.run`)
+- **Multi-model cost router** (`backend/optimization/`) — routes each agent to the cheapest model that meets its complexity needs, with payload compression, prompt caching, and per-call cost tracking surfaced via `GET /graph/stats`
+- **Provenance ledger** — every synthesized node records its full derivation chain (source nodes, the contradiction Critic flagged, Synthesizer's reasoning, resolution loop iteration), queryable via `GET /graph/nodes/{id}/provenance` and viewable as a "why does the graph believe this?" trace in the UI
+- **Token-level streaming** — Scholar's query answers stream live over the WebSocket as they generate, instead of waiting for one complete response
+- **Idempotent ingestion** — content-hash deduplication on `/ingest/*` skips re-processing identical documents, returning the original result with zero extra LLM calls
+
+See [docs/features.md](docs/features.md) for the full feature backlog and design notes behind each of the above.
+
+### Frontend & Visualization
+
+- Three.js + d3-force-3d knowledge graph visualization
+- Search with graph focus, contradiction highlighter, node path tracing, confidence threshold filter
+- Agent pipeline visualizer — live drawer timeline of each agent's decisions during ingestion
+- Node inspector — confidence score, source, connections, which agents touched each node, and provenance trace for synthesized nodes
+- Ingest history panel, query history panel (persisted in localStorage), source credibility breakdown in Stats
+- Graph JSON export (`GET /graph/export`), individual node deletion with automatic edge cleanup
+
+### Production & Ops
+
+- Structured JSON logging with per-request correlation IDs (`X-Request-ID`)
+- Real `/health` checks — pings ChromaDB and verifies the agent graphs compiled, returns 503 on a degraded dependency
+- API key auth (`X-API-Key`) on all graph endpoints when `API_KEYS` is configured
+- Docker production hardening — `HEALTHCHECK`, CPU/memory resource limits, configurable `LOG_LEVEL`/`WORKERS`
 
 ## Architecture Docs
 
 - Full architecture and diagrams: [ARCHITECTURE.md](ARCHITECTURE.md)
+- Hand-drawn system diagram (regenerate with `/update-architecture-diagram`): [docs/architecture/diagram.html](docs/architecture/diagram.html)
 - API reference: [docs/api.md](docs/api.md)
 - Developer guide: [docs/developer-guide.md](docs/developer-guide.md)
+- Feature backlog and design notes: [docs/features.md](docs/features.md)
 
 ## Prerequisites
 
@@ -88,6 +100,7 @@ docker compose up --build
 - `API_KEYS`: comma-separated keys; when set, all graph endpoints (`/ingest/*`, `/query`, `/graph/nodes`, `/graph/stats`, `/graph/export`, `/graph/reset`) require an `X-API-Key` header matching one of them (auth disabled if empty)
 - `LOG_LEVEL`: logging verbosity — `DEBUG`, `INFO` (default), `WARNING`, `ERROR`
 - `WORKERS`: number of uvicorn worker processes (default `2`)
+- `ENABLE_TOKEN_OPTIMIZER`: `true/false` (default `true`) — routes agent calls through the cost-optimized multi-model client; falls back to a plain client when `false` or in demo mode
 
 ## Testing
 
@@ -110,6 +123,14 @@ This runs static/runtime contract tests for:
 ```bash
 pytest -q
 ```
+
+### Agent Evaluation Harness
+
+```bash
+python -m backend.eval.run
+```
+
+Runs golden fixtures through the real ingestion/query pipelines and prints a scorecard. Requires `OPENAI_API_KEY` to evaluate real reasoning quality — without it, results are labeled "smoke test only" (validates wiring, not correctness).
 
 ## Common Workflows
 
@@ -147,8 +168,43 @@ If `OPENAI_API_KEY` is missing or demo mode is enabled:
 
 ## Project Layout
 
-- `backend/`: API, graph orchestration, agents, storage, events
-- `frontend/`: UI, rendering engine, WebSocket client
-- `tests/`: unit, integration, frontend harness tests
-- `docs/`: API + developer docs
-- `.kiro/specs/echosystem-multi-agent-kb/tasks.md`: implementation checklist
+```
+backend/
+  agents/                    Librarian, Philosopher, Critic, Synthesizer, Scholar — one LLM-driven node each
+  graphs/                    LangGraph wiring: ingestion_graph.py, query_graph.py
+  eval/                      Evaluation harness — golden fixtures, headless runner, scorer, CLI
+  optimization/              Multi-model cost router — compression, caching, routing, cost metrics
+  main.py                    FastAPI app, REST endpoints, WebSocket connection manager
+  knowledge_store.py         ChromaDB persistence — graph nodes + ingestion-hash dedup table
+  llm_client.py              OpenAI client wrappers (demo / plain / streaming), selected by config
+  events.py                  Structured agent event emission (emit_event / build_event)
+  state.py                   Shared LangGraph state schema (EchoState)
+  config.py                  Environment-driven settings
+  retry.py                   Error-classified retry/backoff for LLM calls
+
+frontend/
+  index.html                 App shell
+  js/app.js                  UI logic, WebSocket client, graph rendering glue
+  js/testable_utils.js       Pure functions covered by the frontend test harness
+  css/style.css              Styling
+
+tests/
+  unit/                      Fast, isolated tests (agents, knowledge store, optimization, retry, eval)
+  integration/               API endpoint contracts, full graph wiring, WebSocket manager
+  frontend/                  Node-based contract tests for frontend/js/*
+  performance/               Load/latency checks
+  uat/                       User-acceptance scenarios
+
+docs/
+  api.md                     API reference
+  developer-guide.md         Developer onboarding
+  features.md                Feature backlog with design rationale per feature
+  portfolio-notes.md         Engineering decisions worth resume/interview framing
+  architecture.yaml          Source of truth for the architecture diagram
+  architecture/diagram.html  Rendered diagram (regenerate via /update-architecture-diagram)
+```
+
+The original build-out task checklist is preserved at
+[.kiro/specs/echosystem-multi-agent-kb/tasks.md](.kiro/specs/echosystem-multi-agent-kb/tasks.md)
+for historical reference; `docs/features.md` is the actively maintained backlog
+for everything built since.

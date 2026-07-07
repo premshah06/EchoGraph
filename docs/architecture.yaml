@@ -22,6 +22,13 @@ groups:
       - id: synthesizer
         label: Synthesizer
 
+  - name: Graphs
+    nodes:
+      - id: ingestion_graph
+        label: Ingestion Graph
+      - id: query_graph
+        label: Query Graph
+
   - name: Core
     nodes:
       - id: main
@@ -30,6 +37,37 @@ groups:
         label: Retry Logic
       - id: models
         label: Models
+
+  - name: Data & Events
+    nodes:
+      - id: knowledge_store
+        label: Knowledge Store
+      - id: llm_client
+        label: LLM Client (streaming)
+      - id: events
+        label: Events
+      - id: state
+        label: State (EchoState)
+
+  - name: Optimization
+    nodes:
+      - id: engine
+        label: Optimized LLM Client (streaming)
+      - id: metrics
+        label: Metrics
+      - id: middleware
+        label: Middleware
+      - id: configs
+        label: Configs (EchoGraph / Builder)
+
+  - name: Eval Harness
+    nodes:
+      - id: fixtures
+        label: Fixtures (golden JSON)
+      - id: runner
+        label: Runner
+      - id: scorer
+        label: Scorer
 
 edges:
   - from: librarian
@@ -46,5 +84,63 @@ edges:
     to: retry
   - from: main
     to: models
-# test comment 1783378973
-# test comment 2 1783379058
+  - from: librarian
+    to: ingestion_graph
+  - from: critic
+    to: ingestion_graph
+  - from: philosopher
+    to: ingestion_graph
+  - from: synthesizer
+    to: ingestion_graph
+  - from: scholar
+    to: query_graph
+  - from: ingestion_graph
+    to: main
+  - from: query_graph
+    to: main
+  - from: ingestion_graph
+    to: knowledge_store
+  - from: query_graph
+    to: knowledge_store
+  - from: ingestion_graph
+    to: state
+  - from: query_graph
+    to: state
+  - from: ingestion_graph
+    to: llm_client
+  - from: main
+    to: knowledge_store
+  - from: main
+    to: llm_client
+  - from: main
+    to: events
+  - from: llm_client
+    to: engine
+  - from: engine
+    to: metrics
+  - from: engine
+    to: middleware
+  - from: engine
+    to: configs
+  - from: runner
+    to: ingestion_graph
+  - from: runner
+    to: query_graph
+  - from: runner
+    to: knowledge_store
+  - from: fixtures
+    to: runner
+  - from: runner
+    to: scorer
+  # All agents call emit_event directly (not just through main.py); Scholar
+  # additionally emits agent_token events for live query-answer streaming.
+  - from: scholar
+    to: events
+  - from: librarian
+    to: events
+  - from: philosopher
+    to: events
+  - from: critic
+    to: events
+  - from: synthesizer
+    to: events

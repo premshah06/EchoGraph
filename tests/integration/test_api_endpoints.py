@@ -15,6 +15,7 @@ class FakeChromaClient:
 class FakeStore:
     def __init__(self):
         self.client = FakeChromaClient()
+        self.ingestion_hashes_by_key = {}
         self.nodes = [
             {
                 "id": "node-1",
@@ -68,6 +69,19 @@ class FakeStore:
         before = len(self.nodes)
         self.nodes = [n for n in self.nodes if n["id"] != node_id]
         return len(self.nodes) < before
+
+    def find_prior_ingestion(self, content_hash: str):
+        return self.ingestion_hashes_by_key.get(content_hash)
+
+    def record_ingestion(self, content_hash: str, result: dict):
+        self.ingestion_hashes_by_key[content_hash] = {
+            "ingestion_id": result.get("ingestion_id", ""),
+            "nodes_created": result.get("nodes_created", 0),
+            "edges_created": result.get("edges_created", 0),
+            "contradictions_resolved": result.get("contradictions_resolved", 0),
+            "loops_executed": result.get("loops_executed", 0),
+            "ingested_at": "",
+        }
 
 
 class FakeGraph:
@@ -145,6 +159,43 @@ def test_ingest_document_endpoint(monkeypatch):
     payload = response.json()
     assert payload["status"] == "success"
     assert payload["nodes_created"] >= 1
+
+
+def test_ingest_document_endpoint_detects_duplicate(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        first = client.post(
+            "/ingest/document",
+            json={"content": "duplicate test content", "source_label": "doc.txt"},
+        )
+        second = client.post(
+            "/ingest/document",
+            json={"content": "duplicate test content", "source_label": "doc.txt"},
+        )
+
+    assert first.status_code == 200
+    assert first.json()["status"] == "success"
+
+    assert second.status_code == 200
+    second_payload = second.json()
+    assert second_payload["status"] == "duplicate"
+    assert second_payload["ingestion_id"] == first.json()["ingestion_id"]
+
+
+def test_ingest_document_endpoint_treats_different_content_as_new(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        first = client.post(
+            "/ingest/document",
+            json={"content": "content A", "source_label": "doc.txt"},
+        )
+        second = client.post(
+            "/ingest/document",
+            json={"content": "content B", "source_label": "doc.txt"},
+        )
+
+    assert first.json()["status"] == "success"
+    assert second.json()["status"] == "success"
 
 
 def test_ingest_url_endpoint(monkeypatch):
@@ -460,6 +511,45 @@ def test_batch_ingest_partial_on_empty_content(monkeypatch):
     statuses = {r["source_label"]: r["status"] for r in payload["results"]}
     assert statuses["doc-1.txt"] == "success"
     assert statuses["doc-2.txt"] == "skipped"
+
+
+def test_batch_ingest_detects_duplicate_within_batch(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        response = client.post(
+            "/ingest/batch",
+            json={
+                "documents": [
+                    {"content": "repeated content", "source_label": "doc-1.txt"},
+                    {"content": "repeated content", "source_label": "doc-2.txt"},
+                ]
+            },
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["succeeded"] == 2
+    assert payload["failed"] == 0
+    statuses = {r["source_label"]: r["status"] for r in payload["results"]}
+    assert statuses["doc-1.txt"] == "success"
+    assert statuses["doc-2.txt"] == "duplicate"
+
+
+def test_batch_ingest_detects_duplicate_against_prior_ingestion(monkeypatch):
+    with build_client(monkeypatch) as client:
+        main.demo_mode_enabled = False
+        client.post(
+            "/ingest/document",
+            json={"content": "already ingested earlier", "source_label": "doc-0.txt"},
+        )
+        response = client.post(
+            "/ingest/batch",
+            json={"documents": [{"content": "already ingested earlier", "source_label": "doc-1.txt"}]},
+        )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["results"][0]["status"] == "duplicate"
 
 
 def test_batch_ingest_rejects_more_than_20_docs(monkeypatch):

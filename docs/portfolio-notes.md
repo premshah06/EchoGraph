@@ -125,3 +125,104 @@ their conclusions auditable."
 - `backend/agents/synthesizer.py`, `backend/graphs/ingestion_graph.py`, `backend/knowledge_store.py`, `GET /graph/nodes/{id}/provenance` (provenance ledger)
 - `tests/unit/test_optimization_engine.py`, `tests/unit/test_eval_harness.py`, plus additions to `tests/unit/test_knowledge_store.py` and `tests/integration/test_api_endpoints.py`
 - Full feature backlog and status: `docs/features.md`
+
+---
+
+## 2026-07-06 — Idempotent ingestion via content-hash dedup, and a design choice that avoided a subtle test-coupling bug
+
+**What I built:** `POST /ingest/document`, `POST /ingest/url`, and `POST
+/ingest/batch` now detect when the exact same document content has already
+been ingested — regardless of source label — and skip the expensive
+agent pipeline entirely, returning the original ingestion's result with a
+`status: "duplicate"` marker instead of silently re-processing (and
+re-billing LLM calls for) the same text.
+
+**The interesting decision:** dedup needs a hash function callable from
+`backend/main.py`. The obvious design is a `KnowledgeStore.hash_content()`
+staticmethod — except the test suite monkeypatches `main.KnowledgeStore`
+itself to a lambda constructor (a common test-double pattern for swapping in a
+fake store). A staticmethod call on that patched name breaks immediately,
+since a lambda isn't a class and has no attributes. Rather than working around
+that in tests, I moved `hash_content` to a plain module-level function in
+`knowledge_store.py`, imported directly by name. It's a small design choice,
+but it removes a coupling between "the class used for dependency injection"
+and "a pure utility function that has nothing to do with instances" — the
+kind of distinction that's easy to blur and then pay for later when tests
+start mocking the class.
+
+**Why this is worth talking about:** It's a concrete, small example of
+noticing that a bug wasn't really a testing problem — it was a design smell
+(a stateless utility function riding along on a stateful class) that tests
+happened to surface. Fixing the actual coupling, rather than adding
+test-specific workarounds, is the kind of judgment call that distinguishes
+"made the tests pass" from "fixed the real problem."
+
+**Possible framings:**
+- Resume bullet: *"Added idempotent ingestion with content-hash deduplication,
+  eliminating redundant LLM calls on retried or duplicate document
+  submissions."*
+- Interview talking point: a small story about diagnosing whether a failing
+  test reveals a test problem or a design problem, and choosing to fix the
+  design.
+
+**Artifacts from this work:**
+- `backend/knowledge_store.py` — `hash_content()`, `find_prior_ingestion()`,
+  `record_ingestion()`, second `ingestion_hashes` ChromaDB collection
+- `backend/main.py` — dedup checks in `/ingest/document` and `/ingest/batch`
+- `tests/unit/test_knowledge_store.py`, `tests/integration/test_api_endpoints.py`
+- Status detail: `docs/features.md` (#6)
+
+---
+
+## 2026-07-06 — Real token-level streaming for Scholar's answers, scoped deliberately
+
+**What I built:** Scholar's query answers now stream token-by-token to the UI
+over the existing WebSocket, live-typing the response the way ChatGPT does,
+instead of the frontend waiting on one big HTTP response and rendering the
+whole answer at once.
+
+**The scoping decision (this is the interesting part):** the obvious first
+instinct is "stream every agent's LLM output" — but ingestion runs many LLM
+calls per document (Philosopher alone calls the model once per new-concept ×
+existing-node pair, which can be dozens of calls). Streaming all of that would
+flood the pipeline drawer with token noise nobody actually watches live;
+ingestion is a background process, not something users stare at character by
+character. Scholar's answer is different — it's the one moment someone is
+actively waiting on live text. I scoped streaming to exactly that one call
+site rather than defaulting to "stream everything because streaming is the
+feature."
+
+**The engineering underneath:** all three LLM client implementations
+(demo/fallback, plain OpenAI, and the cost-optimized router) needed a
+consistent `invoke_streaming(prompt, agent, on_token)` contract so
+`scholar_node` doesn't need to know which backend it's talking to. The
+cost-optimized client's version still runs through the exact same
+routing/caching/cost-tracking logic as its non-streaming sibling — streaming
+changed *delivery*, not the economics or correctness guarantees already built
+for feature #3. Getting token usage back from a streaming OpenAI response
+required an extra `stream_options` flag most people miss on the first try,
+since usage isn't attached to every chunk by default.
+
+**Why this is worth talking about:** it's a concrete, defensible example of
+saying no to over-scoping a feature just because the general capability(streaming) sounds impressive everywhere. The narrower version is also more
+honestly "real" — no config flag pretending everything streams when only the
+user-facing path actually benefits from it.
+
+**Possible framings:**
+- Resume bullet: *"Implemented token-level streaming for the user-facing
+  query path over an existing WebSocket event pipeline, scoped deliberately
+  to the single call site where live output matters, avoiding needless
+  overhead on the many-call ingestion pipeline."*
+- Interview talking point: a real example of push-back on "just stream
+  everything" — reasoning about where a flashy capability actually earns its
+  complexity budget versus where it's noise.
+
+**Artifacts from this work:**
+- `backend/llm_client.py`, `backend/optimization/engine.py` —
+  `invoke_streaming()` on all three client classes
+- `backend/agents/scholar.py` — streams via `invoke_streaming`, emits
+  `agent_token` events
+- `frontend/js/app.js` — live-accumulates and re-renders the answer box as
+  tokens arrive
+- `tests/unit/test_streaming.py`, additions to `tests/unit/test_agents.py`
+- Status detail: `docs/features.md` (#5)

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from backend.knowledge_store import KnowledgeStore
+from backend.knowledge_store import KnowledgeStore, hash_content
 
 
 def _node_payload(concept: str, summary: str):
@@ -105,3 +105,60 @@ def test_derivation_survives_get_all_nodes(tmp_path):
     nodes = store.get_all_nodes()
 
     assert nodes[0]["derivation"]["source_node_ids"] == ["node-a"]
+
+
+def test_hash_content_is_deterministic():
+    assert hash_content("same text") == hash_content("same text")
+
+
+def test_hash_content_differs_for_different_text():
+    assert hash_content("text A") != hash_content("text B")
+
+
+def test_find_prior_ingestion_returns_none_when_unseen(tmp_path):
+    store = KnowledgeStore(persist_directory=str(tmp_path / "db"))
+    assert store.find_prior_ingestion(hash_content("never ingested")) is None
+
+
+def test_record_and_find_prior_ingestion_round_trips(tmp_path):
+    store = KnowledgeStore(persist_directory=str(tmp_path / "db"))
+    content_hash = hash_content("some document text")
+
+    store.record_ingestion(content_hash, {
+        "ingestion_id": "abc-123",
+        "nodes_created": 5,
+        "edges_created": 3,
+        "contradictions_resolved": 1,
+        "loops_executed": 2,
+    })
+
+    prior = store.find_prior_ingestion(content_hash)
+
+    assert prior is not None
+    assert prior["ingestion_id"] == "abc-123"
+    assert prior["nodes_created"] == 5
+    assert prior["edges_created"] == 3
+    assert prior["contradictions_resolved"] == 1
+    assert prior["loops_executed"] == 2
+
+
+def test_record_ingestion_upserts_on_same_hash(tmp_path):
+    store = KnowledgeStore(persist_directory=str(tmp_path / "db"))
+    content_hash = hash_content("re-ingested document")
+
+    store.record_ingestion(content_hash, {"ingestion_id": "first", "nodes_created": 1})
+    store.record_ingestion(content_hash, {"ingestion_id": "second", "nodes_created": 2})
+
+    prior = store.find_prior_ingestion(content_hash)
+    assert prior["ingestion_id"] == "second"
+    assert prior["nodes_created"] == 2
+
+
+def test_reset_clears_ingestion_hashes_too(tmp_path):
+    store = KnowledgeStore(persist_directory=str(tmp_path / "db"))
+    content_hash = hash_content("doc to be reset away")
+    store.record_ingestion(content_hash, {"ingestion_id": "abc"})
+
+    store.reset()
+
+    assert store.find_prior_ingestion(content_hash) is None

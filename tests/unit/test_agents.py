@@ -40,6 +40,11 @@ class FakeLLM:
             return "According to node #[node-a], the answer is grounded in retrieved evidence."
         return "Processed"
 
+    def invoke_streaming(self, prompt: str, agent: str, on_token) -> str:
+        full_text = self.invoke(prompt)
+        on_token(full_text)
+        return full_text
+
 
 class FakeStore:
     def __init__(self):
@@ -203,3 +208,44 @@ def test_scholar_node_generates_answer(monkeypatch):
     assert "According to node" in result["final_answer"]
     assert len(result["retrieved_nodes"]) >= 1
     assert store.updated_ids
+
+
+def test_scholar_node_emits_agent_token_events(monkeypatch):
+    monkeypatch.setattr("backend.agents.scholar.get_llm_client", lambda: FakeLLM())
+    store = FakeStore()
+    state = _base_state()
+    state["input_type"] = "query"
+    state["query_text"] = "What is this?"
+
+    result = scholar_node(state, store)
+
+    token_events = [e for e in result["agent_events"] if e["event"] == "agent_token"]
+    assert token_events, "expected at least one agent_token event during streaming"
+    assert all(e["agent"] == "scholar" for e in token_events)
+    reconstructed = "".join(e["data"]["token"] for e in token_events)
+    assert reconstructed.strip() == result["final_answer"]
+
+
+def test_scholar_node_calls_streaming_not_plain_invoke(monkeypatch):
+    class StrictStreamingOnlyLLM(FakeLLM):
+        """invoke_streaming here does NOT delegate to invoke — if scholar_node
+        called plain invoke() instead of invoke_streaming(), this test would
+        fail with the AssertionError below rather than silently passing."""
+
+        def invoke(self, prompt: str) -> str:
+            raise AssertionError("scholar should call invoke_streaming, not invoke")
+
+        def invoke_streaming(self, prompt: str, agent: str, on_token) -> str:
+            answer = "According to node #[node-a], streamed answer."
+            on_token(answer)
+            return answer
+
+    monkeypatch.setattr("backend.agents.scholar.get_llm_client", lambda: StrictStreamingOnlyLLM())
+    store = FakeStore()
+    state = _base_state()
+    state["input_type"] = "query"
+    state["query_text"] = "What is this?"
+
+    result = scholar_node(state, store)
+
+    assert "According to node" in result["final_answer"]

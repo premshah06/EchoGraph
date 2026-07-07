@@ -38,6 +38,11 @@ class GraphFakeLLM:
             return "According to node #[node-id], this is the answer."
         return "ok"
 
+    def invoke_streaming(self, prompt: str, agent: str, on_token) -> str:
+        full_text = self.invoke(prompt)
+        on_token(full_text)
+        return full_text
+
 
 def patch_llm(monkeypatch, fake_llm: GraphFakeLLM):
     monkeypatch.setattr(librarian, "get_llm_client", lambda: fake_llm)

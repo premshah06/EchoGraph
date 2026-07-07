@@ -105,7 +105,17 @@ Requirements:
 - If evidence is conflicting or incomplete, acknowledge it explicitly in your answer.
 """
 
-        final_answer = with_retry(llm_client.invoke, answer_prompt, agent="scholar").strip()
+        def _on_token(chunk: str) -> None:
+            emit_event(
+                state,
+                event="agent_token",
+                agent="scholar",
+                data={"token": chunk},
+            )
+
+        final_answer = with_retry(
+            llm_client.invoke_streaming, answer_prompt, "scholar", _on_token, agent="scholar"
+        ).strip()
         if not final_answer:
             final_answer = "I could not generate a grounded answer from the retrieved knowledge nodes."
 

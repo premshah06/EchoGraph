@@ -177,6 +177,79 @@ class OptimizedLLMClient:
 
         return content
 
+    def invoke_streaming(self, prompt: str, agent: str, on_token) -> str:
+        """
+        Streaming counterpart to invoke(): calls on_token(chunk) as each piece
+        of the response arrives, and returns the full accumulated text once
+        the stream ends. Still routed/costed/cached like a normal call — only
+        the delivery is incremental.
+        """
+        t_start = time.perf_counter()
+
+        system_prompt = self.cache_manager.get_system_prompt(agent)
+        cache_hit = self.cache_manager.is_cached(agent)
+        model = self.router.select_model(agent, prompt)
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        call_kwargs: Dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": self.config.agents[agent].temperature
+                if hasattr(self.config.agents.get(agent, object()), "temperature")
+                else 0.3,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+
+        chunks: List[str] = []
+        input_tokens = 0
+        output_tokens = 0
+
+        try:
+            stream = self._openai.chat.completions.create(**call_kwargs)
+            for event in stream:
+                if event.usage:
+                    input_tokens = event.usage.prompt_tokens
+                    output_tokens = event.usage.completion_tokens
+                if not event.choices:
+                    continue
+                delta = event.choices[0].delta.content or ""
+                if not delta:
+                    continue
+                chunks.append(delta)
+                on_token(delta)
+        except Exception:
+            logger.exception("OptimizedLLMClient: streaming call failed for agent=%s model=%s", agent, model)
+            raise
+
+        content = "".join(chunks)
+        cost_usd = self.router.estimate_cost(model, input_tokens, output_tokens)
+        latency_ms = (time.perf_counter() - t_start) * 1000
+
+        metrics = CallMetrics(
+            agent=agent,
+            model=model,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_hit=cache_hit,
+            cost_usd=cost_usd,
+            latency_ms=latency_ms,
+            compression_ratio=0.0,
+            budget_used_pct=(input_tokens / self.config.max_tokens_per_call) * 100,
+        )
+        self.session.record(metrics)
+
+        logger.info(
+            "agent=%s model=%s tokens=%d/%d cost=$%.5f latency=%.0fms cache=%s [streamed]",
+            agent, model, input_tokens, output_tokens,
+            cost_usd, latency_ms, cache_hit,
+        )
+
+        return content
+
     def embed_text(self, text: str) -> List[float]:
         cached = self._embedding_cache.get(text)
         if cached is not None:

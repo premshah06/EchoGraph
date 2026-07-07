@@ -10,12 +10,27 @@ import backend.main as main
 class E2EStore:
     def __init__(self):
         self.nodes = []
+        self.ingestion_hashes_by_key = {}
 
     def get_all_nodes(self):
         return list(self.nodes)
 
     def reset(self):
         self.nodes = []
+        self.ingestion_hashes_by_key = {}
+
+    def find_prior_ingestion(self, content_hash: str):
+        return self.ingestion_hashes_by_key.get(content_hash)
+
+    def record_ingestion(self, content_hash: str, result: dict):
+        self.ingestion_hashes_by_key[content_hash] = {
+            "ingestion_id": result.get("ingestion_id", ""),
+            "nodes_created": result.get("nodes_created", 0),
+            "edges_created": result.get("edges_created", 0),
+            "contradictions_resolved": result.get("contradictions_resolved", 0),
+            "loops_executed": result.get("loops_executed", 0),
+            "ingested_at": "",
+        }
 
 
 class E2EGraph:

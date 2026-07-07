@@ -154,6 +154,8 @@ const appState = {
   pathTraceMode: false,
   pathTraceFirstNode: null,
   queryHistory: loadQueryHistory(),
+  streamingAnswer: "",
+  isStreamingAnswer: false,
 };
 
 function markNodeTouched(nodeId, agent) {
@@ -2142,6 +2144,8 @@ async function queryKnowledge() {
   try {
     setQueryLoading(true);
     graph.clearQueryHighlight();
+    appState.streamingAnswer = "";
+    appState.isStreamingAnswer = false;
     const sessionId = ensureSession();
 
     const result = await apiRequest("/query", {
@@ -2152,11 +2156,17 @@ async function queryKnowledge() {
       }),
     });
 
+    appState.isStreamingAnswer = false;
+    appState.streamingAnswer = "";
     renderAnswer(result.answer, result.sources);
     addQueryHistoryEntry(query, result.answer, result.sources);
     addEventLog("query", `Scholar used ${result.sources.length} sources`);
 
+    // Skip agent_token replay here — those are a live-streaming artifact only
+    // meaningful as they arrive over the WebSocket; result.answer above is
+    // already the final, complete text.
     for (const event of result.agent_events || []) {
+      if (event?.event === "agent_token") continue;
       handleSocketEvent(event);
     }
 
@@ -2366,7 +2376,15 @@ function handleSocketEvent(event) {
       reloadGraphDebounced();
       break;
 
+    case "agent_token":
+      appState.isStreamingAnswer = true;
+      appState.streamingAnswer += data.token || "";
+      renderAnswer(appState.streamingAnswer, []);
+      break;
+
     case "scholar_answer":
+      appState.isStreamingAnswer = false;
+      appState.streamingAnswer = "";
       renderAnswer(data.answer || "", data.sources || []);
       addEventLog(eventType, "Scholar produced an answer", timestamp);
       addPipelineStep("scholar", "Answer generated", null);
