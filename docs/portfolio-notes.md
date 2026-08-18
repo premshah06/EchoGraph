@@ -288,3 +288,60 @@ seriously rather than shrugging it off as "probably fine."
 - `tests/unit/test_confidence_auditor.py`, 16 new tests in
   `tests/unit/test_retry.py`, additions to `tests/integration/test_api_endpoints.py`
 - Status detail: `docs/features.md` (#2, #7)
+
+---
+
+## 2026-08-02 — Chasing a marketing number surfaced two real, silent bugs
+
+**What happened:** asked to get a real cost-savings percentage to quote on
+LinkedIn instead of an invented one. Ran a live ingestion against the actual
+OpenAI API and pulled the number from `/graph/stats`: 86.1%. Before handing it
+over, checked *why* — and found the per-call breakdown showed every agent
+except Scholar labeled `agent: "unknown"`.
+
+**Bug #1:** `with_retry(fn, agent="critic", ...)` treats `agent` as its own
+parameter (used only for log messages) and never forwards it into the actual
+LLM call. So `OptimizedLLMClient` — the multi-model cost router built earlier
+this session — had been silently receiving `agent="unknown"` from 5 of 6 call
+sites since the day it was wired in. That meant the entire "route each agent
+to the cheapest model for its complexity" feature had never actually run for
+librarian, philosopher, critic, synthesizer, or the confidence auditor — only
+Scholar worked, and only by accident (it happens to pass `agent` positionally
+to a different method).
+
+**Bug #2, found immediately after fixing #1:** the moment routing actually
+started working, the "cheap tier" tried to call a model named `gpt-4o-nano` —
+which does not exist. OpenAI returned a live 404. This model name had been
+sitting in the pricing table and router since the feature was first built,
+completely unexercised, because bug #1 meant that code path had never
+actually been reached in practice.
+
+**Why this is the best story from this session:** the 86.1% number was
+already good enough to post. Nothing about it looked wrong — no crash, no
+error, no red flag. The only way to find either bug was to distrust a
+plausible-looking success number and go verify the mechanism behind it,
+rather than take the metric at face value. Both bugs were "silent" in the
+worst way: they degraded the system to a worse default (uniform mini-tier
+routing, effectively) without ever failing loudly. The real number after both
+fixes was *better* (94.9%) — fixing the bugs didn't just make the claim
+honest, it made the actual system better.
+
+**Possible framings:**
+- Resume bullet: *"Diagnosed and fixed a parameter-forwarding bug that had
+  silently disabled per-agent model routing for 5 of 6 call sites since
+  launch, discovered by verifying a cost-savings metric rather than trusting
+  it at face value."*
+- Interview talking point: a concrete example of the difference between "the
+  number looks good, ship it" and "the number looks good — let me check the
+  mechanism that produced it." The second habit is what caught two real bugs
+  that zero tests, zero error logs, and zero user complaints had surfaced.
+
+**Artifacts from this work:**
+- `backend/retry.py` — `with_retry` now forwards `agent` via signature
+  inspection (`inspect.signature(fn).bind_partial`)
+- `backend/llm_client.py` — `DemoLLMClient.invoke`/`LLMClient.invoke` gained
+  an `agent` parameter for a uniform call shape across all three clients
+- `backend/optimization/middleware.py` — `gpt-4o-nano` → `gpt-4.1-nano`
+- `tests/unit/test_retry.py::TestAgentForwarding` (5 new tests)
+- Verified live: 94.9% cost savings, real per-agent model attribution
+- Status detail: `docs/features.md` (#3, "Update 2026-08-02")

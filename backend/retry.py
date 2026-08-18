@@ -24,6 +24,7 @@ result = with_retry(llm_client.invoke, prompt, agent="philosopher")
 
 from __future__ import annotations
 
+import inspect
 import logging
 import random
 import threading
@@ -237,7 +238,14 @@ def with_retry(
     ----------
     fn              : The callable to wrap (e.g. llm_client.invoke)
     *args           : Positional args forwarded to fn
-    agent           : Agent name for structured log context
+    agent           : Agent name for structured log context. Also forwarded to
+                      fn as a keyword arg (every real LLM client accepts
+                      `agent`, e.g. OptimizedLLMClient.invoke uses it for
+                      cost/model-routing bookkeeping) — UNLESS `agent` is
+                      already supplied positionally in *args, in which case
+                      forwarding it again as a kwarg would raise
+                      "got multiple values for argument 'agent'" (this is the
+                      case for invoke_streaming(prompt, agent, on_token)).
     max_attempts    : Max retries for transient errors
     parse_max_attempts : Max retries for parse errors
     timeout         : Per-call wall-clock timeout in seconds (None = no limit)
@@ -247,6 +255,28 @@ def with_retry(
     """
     if circuit_breaker is not None:
         circuit_breaker.before_call()
+
+    # Forward agent to fn so cost/routing bookkeeping (e.g. OptimizedLLMClient)
+    # sees the real caller instead of the "unknown" default — but only when fn
+    # actually accepts an `agent` parameter, and only when it isn't already
+    # supplied positionally (Python raises "got multiple values for argument"
+    # if both are supplied; see invoke_streaming(prompt, agent, on_token)).
+    # fn may be an arbitrary callable (tests pass plain closures that accept
+    # no `agent` at all), so both checks are required, not just the second.
+    call_kwargs = dict(kwargs)
+    if "agent" not in call_kwargs:
+        try:
+            params = inspect.signature(fn).parameters
+            accepts_agent = "agent" in params or any(
+                p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
+            )
+            bound = inspect.signature(fn).bind_partial(*args)
+            already_positional = "agent" in bound.arguments
+        except (TypeError, ValueError):
+            accepts_agent = False
+            already_positional = False
+        if accepts_agent and not already_positional:
+            call_kwargs["agent"] = agent
 
     transient_attempts = 0
     parse_attempts     = 0
@@ -260,9 +290,9 @@ def with_retry(
                     logger.info("rate_limit.waited agent=%s seconds=%.2f", agent, waited)
 
             if timeout is not None:
-                result = _call_with_timeout(fn, args, kwargs, timeout)
+                result = _call_with_timeout(fn, args, call_kwargs, timeout)
             else:
-                result = fn(*args, **kwargs)
+                result = fn(*args, **call_kwargs)
 
             if circuit_breaker is not None:
                 circuit_breaker.record_success()

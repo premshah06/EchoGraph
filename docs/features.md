@@ -113,6 +113,41 @@ mode / no API key). New regression coverage:
 `tests/unit/test_optimization_engine.py` (9 tests exercising the exact
 `with_retry`-driven call path agents use, which had zero prior coverage).
 
+**Update (2026-08-02):** Found and fixed two more real bugs while getting a
+genuine savings number to quote publicly — worth recording since both were
+silent, not crashes.
+
+1. **`agent` was never actually forwarded to the LLM client.** `with_retry(fn,
+   agent="critic", ...)` treats `agent` as its own keyword-only parameter (for
+   log messages) and never passed it into `fn(*args, **kwargs)`. Every
+   non-streaming agent call (librarian, philosopher, critic, synthesizer, plus
+   the confidence auditor) was silently recording its LLM calls under
+   `agent="unknown"` in `OptimizedLLMClient`, which meant `ModelRouter` never
+   saw the real agent name and fell back to a default complexity score instead
+   of the agent's actual configured tier — the per-agent routing this whole
+   feature exists for was not running for 5 of 6 call sites. Only
+   `backend/agents/scholar.py` worked, because it passes `agent` positionally
+   into `invoke_streaming` rather than relying on `with_retry` to forward it.
+   Fixed by making `with_retry` inspect `fn`'s signature and forward `agent`
+   as a kwarg only when `fn` actually accepts it and it isn't already bound
+   positionally (avoids `TypeError: got multiple values for argument`).
+   `DemoLLMClient.invoke`/`LLMClient.invoke` also gained an `agent` parameter
+   so all three clients share one call shape. 5 new regression tests in
+   `tests/unit/test_retry.py::TestAgentForwarding`.
+2. **`gpt-4o-nano` doesn't exist.** Fixing bug #1 above meant the nano tier
+   actually got called for the first time — and OpenAI returned a live 404,
+   `model_not_found`. The pricing table and router referenced a fabricated
+   model name that had never been exercised end-to-end. Replaced with
+   `gpt-4.1-nano`, OpenAI's real current cheapest/fastest model.
+
+Verified with a real ingestion (two contradicting documents, one genuine
+resolution loop) + one streamed query against the live OpenAI API:
+**94.9% cost savings** ($0.0162 actual vs. $0.315 estimated unoptimized, 30
+LLM calls), with `librarian`/`philosopher` correctly routed to
+`gpt-4.1-nano`/`gpt-4o-mini` and `critic`/`synthesizer`/`scholar` on `gpt-4o`
+— the first time the per-agent tiering has been confirmed working against
+real attribution rather than an accidental default.
+
 ### 4. Provenance & Reasoning-Trace Ledger  `[x]`
 **What:** Every synthesized node records its full derivation chain — which raw
 nodes, which contradiction, which Synthesizer reasoning, at which loop iteration

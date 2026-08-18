@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 MODEL_PRICING: Dict[str, Dict[str, float]] = {
     "gpt-4o":            {"input": 2.50,  "output": 10.00},
     "gpt-4o-mini":       {"input": 0.15,  "output": 0.60},
-    "gpt-4o-nano":       {"input": 0.075, "output": 0.30},
+    "gpt-4.1-nano":      {"input": 0.10,  "output": 0.40},
     "gpt-4-turbo":       {"input": 10.00, "output": 30.00},
     "gpt-3.5-turbo":     {"input": 0.50,  "output": 1.50},
 }
@@ -116,7 +116,7 @@ class ModelRouter:
       - Whether the response requires deep reasoning
 
     Score → Model mapping:
-      0.00 – 0.44  →  gpt-4o-nano   (fast, very cheap, simple extraction)
+      0.00 – 0.44  →  gpt-4.1-nano  (fast, very cheap, simple extraction)
       0.45 – 0.69  →  gpt-4o-mini   (balanced, most tasks)
       0.70 – 1.00  →  gpt-4o        (full reasoning, user-facing answers)
     """
@@ -145,7 +145,7 @@ class ModelRouter:
         score = self.complexity_score(agent, context)
 
         if score < COMPLEXITY_MINI_MAX:
-            return "gpt-4o-nano" if "gpt-4o-nano" in MODEL_PRICING else "gpt-4o-mini"
+            return "gpt-4.1-nano" if "gpt-4.1-nano" in MODEL_PRICING else "gpt-4o-mini"
         if score < COMPLEXITY_4O_MIN:
             return "gpt-4o-mini"
         return "gpt-4o"

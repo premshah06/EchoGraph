@@ -108,7 +108,7 @@ class TestModelRouter:
         )
         router = ModelRouter(cfg)
         model = router.select_model("nano_task", "x" * 10)
-        assert model in ("gpt-4o-nano", "gpt-4o-mini")
+        assert model in ("gpt-4.1-nano", "gpt-4o-mini")
 
     def test_auto_routing_high_complexity_gives_4o(self):
         cfg = OptimizationConfig(

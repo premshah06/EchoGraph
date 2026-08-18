@@ -40,7 +40,7 @@ class DemoLLMClient:
     def embed_texts(self, texts: List[str]) -> List[List[float]]:
         return [self.embed_text(text) for text in texts]
 
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, agent: str = "unknown") -> str:
         prompt_lower = prompt.lower()
 
         if "extract 5-10 key concepts" in prompt_lower:
@@ -169,7 +169,7 @@ class LLMClient:
 
         return [embedding if embedding is not None else [0.0] * 1536 for embedding in results]
 
-    def invoke(self, prompt: str) -> str:
+    def invoke(self, prompt: str, agent: str = "unknown") -> str:
         response = self._retry(self.llm.invoke, prompt)
         return response.content
 

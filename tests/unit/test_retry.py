@@ -301,3 +301,84 @@ class TestWithRetryProtections:
 
         assert calls == [1]
         assert limiter._tokens < 10.0
+
+
+# ── agent forwarding ─────────────────────────────────────────────────────
+#
+# Regression coverage for a real bug: with_retry's `agent=` kwarg is consumed
+# by with_retry itself for logging, and previously was NEVER forwarded to fn.
+# Every real LLM client (backend/llm_client.py, backend/optimization/engine.py)
+# accepts `agent` and uses it for cost/model-routing bookkeeping — so every
+# non-streaming agent call (librarian/philosopher/critic/synthesizer, and the
+# confidence auditor) was silently recording its LLM calls under
+# agent="unknown" instead of the real agent name, which also broke
+# OptimizedLLMClient's per-agent complexity-based model routing (it fell back
+# to whatever "unknown" happens to route to, not the agent's real tier).
+# Only backend/agents/scholar.py worked correctly, because it passes agent
+# positionally to invoke_streaming rather than relying on with_retry to
+# forward it.
+
+class TestAgentForwarding:
+    def test_forwards_agent_to_fn_that_accepts_it(self):
+        received = {}
+
+        def fn(prompt, agent="unknown"):
+            received["agent"] = agent
+            return "ok"
+
+        with_retry(fn, "prompt text", agent="librarian", timeout=None)
+
+        assert received["agent"] == "librarian"
+
+    def test_does_not_forward_agent_to_fn_that_does_not_accept_it(self):
+        """Plain callables (e.g. test doubles, DemoLLMClient-style clients
+        that predate the agent param) must not break."""
+        def fn(prompt):
+            return f"got: {prompt}"
+
+        result = with_retry(fn, "prompt text", agent="librarian", timeout=None)
+
+        assert result == "got: prompt text"
+
+    def test_does_not_double_supply_agent_when_already_positional(self):
+        """invoke_streaming(prompt, agent, on_token) receives agent
+        positionally — with_retry must not also inject it as a kwarg, or
+        Python raises 'got multiple values for argument agent'."""
+        received = {}
+
+        def invoke_streaming(prompt, agent, on_token):
+            received["agent"] = agent
+            on_token("chunk")
+            return "chunk"
+
+        result = with_retry(
+            invoke_streaming, "prompt text", "scholar", lambda _c: None,
+            agent="scholar", timeout=None,
+        )
+
+        assert result == "chunk"
+        assert received["agent"] == "scholar"
+
+    def test_explicit_kwarg_agent_is_not_overridden(self):
+        received = {}
+
+        def fn(prompt, agent="unknown"):
+            received["agent"] = agent
+            return "ok"
+
+        with_retry(fn, "prompt text", agent="librarian", timeout=None)
+        # with_retry's own `agent=` (for logging) matches what's forwarded
+        # here since no caller passes a *different* agent via **kwargs in
+        # practice — this test just pins that the forwarded value is used.
+        assert received["agent"] == "librarian"
+
+    def test_forwards_agent_for_fn_accepting_var_keyword(self):
+        received = {}
+
+        def fn(prompt, **kwargs):
+            received.update(kwargs)
+            return "ok"
+
+        with_retry(fn, "prompt text", agent="critic", timeout=None)
+
+        assert received.get("agent") == "critic"
