@@ -13,7 +13,7 @@ from typing import List, Optional
 from unittest.mock import MagicMock
 
 from backend.llm_client import DemoLLMClient
-from backend.optimization.configs.echograph import EchoGraphConfig
+from backend.optimization.configs.graphmediator import GraphMediatorConfig
 from backend.optimization.engine import OptimizedLLMClient
 
 
@@ -74,7 +74,7 @@ def _fake_streaming_openai_client(chunks: List[str]):
 
 
 def make_streaming_client(chunks: List[str]) -> OptimizedLLMClient:
-    client = OptimizedLLMClient(config=EchoGraphConfig, openai_api_key="sk-test")
+    client = OptimizedLLMClient(config=GraphMediatorConfig, openai_api_key="sk-test")
     client._openai = _fake_streaming_openai_client(chunks)
     return client
 

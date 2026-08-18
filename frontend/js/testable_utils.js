@@ -126,7 +126,10 @@ export function renderIngestHistoryList(entries) {
                 ? `${((entry.finishedAt - entry.startedAt) / 1000).toFixed(1)}s`
                 : "…";
             const statusClass =
-                entry.status === "done" ? "done" : entry.status === "error" ? "error" : "running";
+                entry.status === "done" ? "done"
+                : entry.status === "error" ? "error"
+                : entry.status === "duplicate" ? "duplicate"
+                : "running";
             const typeIcon = entry.type === "url" ? "\u{1F517}" : "\u{1F4C4}";
 
             return `
@@ -139,7 +142,9 @@ export function renderIngestHistoryList(entries) {
           <span>${started}</span>
           <span>${duration}</span>
           ${
-              entry.status !== "running"
+              entry.status === "duplicate"
+                  ? "<span>Already ingested — skipped</span>"
+                  : entry.status !== "running"
                   ? `<span>${entry.nodes} nodes · ${entry.edges} edges</span>`
                   : "<span>Processing…</span>"
           }

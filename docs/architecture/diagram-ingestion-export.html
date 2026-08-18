@@ -1,0 +1,121 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #f7f5f0; }
+  body {
+    width: 1180px;
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    padding: 36px 40px 32px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8b8578;
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 22px;
+    margin: 0 0 22px;
+    color: #1a1d29;
+  }
+  h1 .sub { font-weight: 400; color: #4a4d5c; font-size: 15px; margin-left: 10px; }
+  figure { margin: 0; }
+  svg { display: block; width: 100%; height: auto; }
+  .footer { margin-top: 14px; font-size: 11.5px; color: #a19c8c; text-align: right; }
+</style>
+</head>
+<body>
+  <p class="eyebrow">System flow</p>
+  <h1>Ingestion <span class="sub">POST /ingest/document · /ingest/url · /ingest/batch</span></h1>
+
+  <figure>
+    <svg viewBox="0 0 1100 385" role="img" aria-label="Ingestion flow">
+      <defs>
+        <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+          <polygon points="0,0 8,4 0,8" fill="#1a1d29" />
+        </marker>
+        <marker id="arrow-terracotta" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+          <polygon points="0,0 8,4 0,8" fill="#c9622a" />
+        </marker>
+        <marker id="arrow-teal" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+          <polygon points="0,0 8,4 0,8" fill="#3a6b5c" />
+        </marker>
+        <filter id="soft-shadow" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1d29" flood-opacity="0.10" />
+        </filter>
+      </defs>
+
+      <g filter="url(#soft-shadow)">
+        <rect x="10" y="150" width="120" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.4" />
+      </g>
+      <text x="70" y="175" text-anchor="middle" font-size="12.5" fill="#1a1d29">Raw</text>
+      <text x="70" y="191" text-anchor="middle" font-size="12.5" fill="#1a1d29">document</text>
+
+      <line x1="130" y1="180" x2="180" y2="180" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+
+      <g filter="url(#soft-shadow)">
+        <rect x="182" y="150" width="140" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.7" />
+      </g>
+      <text x="252" y="176" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1d29">Librarian</text>
+      <text x="252" y="193" text-anchor="middle" font-size="11" fill="#4a4d5c">extracts concepts</text>
+
+      <line x1="322" y1="180" x2="370" y2="180" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+      <text x="346" y="170" text-anchor="middle" font-size="10" fill="#8b8578">concepts</text>
+
+      <g filter="url(#soft-shadow)">
+        <rect x="372" y="150" width="150" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.7" />
+      </g>
+      <text x="447" y="176" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1d29">Philosopher</text>
+      <text x="447" y="193" text-anchor="middle" font-size="11" fill="#4a4d5c">links relationships</text>
+
+      <line x1="522" y1="180" x2="570" y2="180" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+
+      <g filter="url(#soft-shadow)">
+        <rect x="572" y="150" width="130" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.7" />
+      </g>
+      <text x="637" y="176" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1d29">Critic</text>
+      <text x="637" y="193" text-anchor="middle" font-size="11" fill="#4a4d5c">flags conflicts</text>
+
+      <path d="M 637 210 L 637 332 L 900 332" fill="none" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+      <text x="662" y="327" font-size="10" fill="#8b8578">no contradiction</text>
+
+      <line x1="702" y1="180" x2="750" y2="180" stroke="#c9622a" stroke-width="1.7" marker-end="url(#arrow-terracotta)" />
+      <text x="726" y="145" text-anchor="middle" font-size="10" fill="#c9622a">contradiction</text>
+
+      <g filter="url(#soft-shadow)">
+        <rect x="752" y="150" width="150" height="60" rx="8" fill="#fff8f4" stroke="#c9622a" stroke-width="2" />
+      </g>
+      <text x="827" y="176" text-anchor="middle" font-size="13" font-weight="700" fill="#c9622a">Synthesizer</text>
+      <text x="827" y="193" text-anchor="middle" font-size="11" fill="#4a4d5c">resolves dialectically</text>
+
+      <path d="M 827 150 C 827 66, 637 66, 637 150" fill="none" stroke="#c9622a" stroke-width="1.7" stroke-dasharray="5 4" marker-end="url(#arrow-terracotta)" />
+      <text x="732" y="55" text-anchor="middle" font-size="10.5" fill="#c9622a" font-weight="600">confidence &lt; 0.6 and loop &lt; 3</text>
+      <text x="732" y="69" text-anchor="middle" font-size="9.5" fill="#8b8578">re-run Critic on the synthesis</text>
+
+      <path d="M 902 195 L 902 332" fill="none" stroke="#3a6b5c" stroke-width="1.7" marker-end="url(#arrow-teal)" />
+      <text x="917" y="267" font-size="10" fill="#3a6b5c">confidence ≥ 0.6</text>
+      <text x="917" y="279" font-size="10" fill="#3a6b5c">or loop = 3</text>
+
+      <g filter="url(#soft-shadow)">
+        <rect x="902" y="302" width="150" height="60" rx="8" fill="#f4f9f7" stroke="#3a6b5c" stroke-width="2" />
+      </g>
+      <text x="977" y="328" text-anchor="middle" font-size="13" font-weight="700" fill="#3a6b5c">Knowledge Store</text>
+      <text x="977" y="345" text-anchor="middle" font-size="11" fill="#4a4d5c">ChromaDB, ranked</text>
+
+      <g filter="url(#soft-shadow)">
+        <rect x="10" y="262" width="122" height="48" rx="8" fill="#fdfcfa" stroke="#8b8578" stroke-width="1.2" stroke-dasharray="3 3" />
+      </g>
+      <text x="71" y="281" text-anchor="middle" font-size="10" fill="#8b8578">same content</text>
+      <text x="71" y="294" text-anchor="middle" font-size="10" fill="#8b8578">hash already seen?</text>
+      <path d="M 71 262 L 71 212" fill="none" stroke="#8b8578" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow)" />
+      <text x="18" y="242" font-size="9.5" fill="#8b8578">skip →</text>
+    </svg>
+  </figure>
+</body>
+</html>

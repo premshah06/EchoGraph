@@ -1,4 +1,4 @@
-"""LangGraph state definition for EchoGraph."""
+"""LangGraph state definition for GraphMediator AI."""
 
 from typing import Any, Callable, Dict, List, TypedDict
 

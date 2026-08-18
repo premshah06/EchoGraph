@@ -1,6 +1,6 @@
 # Feature Backlog — Flagship & Production Features
 
-Curated backlog of high-end, production-level features for EchoGraph, chosen to
+Curated backlog of high-end, production-level features for GraphMediator AI, chosen to
 maximize both resume value and demonstrated depth in agentic engineering. Each
 feature notes **what it is**, **why it's flagship-worthy**, and **where it hooks
 into the existing codebase** so we can pick any one up later without re-deriving
@@ -103,7 +103,7 @@ call. Fixed by giving `OptimizedLLMClient.invoke(prompt, agent="unknown")` the
 same call shape as `DemoLLMClient`/`LLMClient`, moving the old payload-based
 path to an explicit `invoke_structured()` for non-agent callers (e.g. eval
 tooling), and removing the dead `invoke_raw` escape hatch it replaces.
-Also unpinned `librarian`/`philosopher`/`critic` in `EchoGraphConfig` (they were
+Also unpinned `librarian`/`philosopher`/`critic` in `GraphMediatorConfig` (they were
 hardcoded to `gpt-4o-mini`, bypassing `ModelRouter` entirely) so complexity-based
 routing actually runs for them; `synthesizer`/`scholar` stay pinned to `gpt-4o`
 since their output becomes persisted graph truth. Session cost/savings now

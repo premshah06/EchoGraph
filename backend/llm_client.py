@@ -219,9 +219,9 @@ def get_llm_client() -> object:
 
     if settings.enable_token_optimizer:
         from backend.optimization.engine import OptimizedLLMClient
-        from backend.optimization.configs.echograph import EchoGraphConfig
+        from backend.optimization.configs.graphmediator import GraphMediatorConfig
         _llm_client = OptimizedLLMClient(
-            config=EchoGraphConfig,
+            config=GraphMediatorConfig,
             openai_api_key=settings.openai_api_key,
         )
         return _llm_client

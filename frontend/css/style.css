@@ -253,6 +253,37 @@ a {
   font-weight: 600;
 }
 
+.circuit-breaker-banner {
+  max-width: 1800px;
+  width: calc(100% - 2.5rem);
+  margin: 0.75rem auto 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #991b1b;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.static-preview-banner {
+  max-width: 1800px;
+  width: calc(100% - 2.5rem);
+  margin: 0.75rem auto 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-md);
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: #1e40af;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.static-preview-banner a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 /* ── Layout ─────────────────────────────────────────────────── */
 .layout {
   flex: 1;
@@ -677,6 +708,116 @@ textarea {
 #contradictionCount { color: var(--accent-red); }
 #statsGrid > div:nth-child(4) strong,
 #synthesizedCount   { color: var(--accent-violet); }
+
+/* ── Optimization / Confidence Audit panels ────────────────────── */
+.optimization-empty,
+.audit-empty {
+  color: var(--text-3);
+  font-size: 0.82rem;
+  margin-top: 8px;
+}
+
+.opt-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.opt-grid > div {
+  background: #f8f9fa;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.opt-grid span {
+  display: block;
+  color: var(--text-3);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.opt-grid strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.1rem;
+  font-family: var(--font-display);
+  font-weight: 700;
+}
+
+.opt-savings { color: var(--accent-cyan); }
+
+.opt-model-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.opt-model-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.1);
+  color: #92400e;
+}
+
+.audit-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.audit-row {
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #f8f9fa;
+  padding: 8px 10px;
+  font-size: 0.78rem;
+}
+
+.audit-row.overconfident  { border-left-color: var(--accent-red); }
+.audit-row.underconfident { border-left-color: var(--accent-amber); }
+
+.audit-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.audit-row-concept {
+  font-weight: 600;
+  color: var(--text-1);
+}
+
+.audit-row-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.audit-row-badge.overconfident  { background: rgba(239,68,68,0.1);  color: #991b1b; }
+.audit-row-badge.underconfident { background: rgba(245,158,11,0.1); color: #92400e; }
+
+.audit-row-scores {
+  margin-top: 4px;
+  color: var(--text-2);
+}
+
+.audit-row-reasoning {
+  margin-top: 4px;
+  color: var(--text-3);
+  font-style: italic;
+}
 
 /* ── Graph Panel ────────────────────────────────────────────── */
 .panel-graph {
@@ -1476,9 +1617,10 @@ textarea {
   padding: 10px 12px;
 }
 
-.ingest-history-item.done    { border-left-color: var(--accent-green); }
-.ingest-history-item.error   { border-left-color: var(--accent-red); }
-.ingest-history-item.running { border-left-color: var(--accent-amber); }
+.ingest-history-item.done      { border-left-color: var(--accent-green); }
+.ingest-history-item.error     { border-left-color: var(--accent-red); }
+.ingest-history-item.running   { border-left-color: var(--accent-amber); }
+.ingest-history-item.duplicate { border-left-color: var(--accent-cyan); }
 
 .ingest-history-head {
   display: flex;
@@ -1505,9 +1647,10 @@ textarea {
   flex-shrink: 0;
 }
 
-.ingest-history-status.done    { background: rgba(16,185,129,0.1);  color: #065f46; }
-.ingest-history-status.error   { background: rgba(239,68,68,0.1);   color: #991b1b; }
-.ingest-history-status.running { background: rgba(245,158,11,0.1);  color: #92400e; }
+.ingest-history-status.done      { background: rgba(16,185,129,0.1);  color: #065f46; }
+.ingest-history-status.error     { background: rgba(239,68,68,0.1);   color: #991b1b; }
+.ingest-history-status.running   { background: rgba(245,158,11,0.1);  color: #92400e; }
+.ingest-history-status.duplicate { background: rgba(16,185,129,0.08); color: #0e7490; }
 
 .ingest-history-meta {
   display: flex;

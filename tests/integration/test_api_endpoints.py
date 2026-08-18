@@ -249,7 +249,7 @@ def test_export_content_disposition_header(monkeypatch):
         response = client.get("/graph/export")
 
     assert "attachment" in response.headers.get("content-disposition", "")
-    assert "echograph-export.json" in response.headers.get("content-disposition", "")
+    assert "graphmediator-export.json" in response.headers.get("content-disposition", "")
 
 
 def test_delete_node_endpoint(monkeypatch):

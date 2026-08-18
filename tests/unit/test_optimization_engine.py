@@ -17,7 +17,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.optimization.configs.echograph import EchoGraphConfig
+from backend.optimization.configs.graphmediator import GraphMediatorConfig
 from backend.optimization.engine import OptimizedLLMClient
 
 
@@ -54,7 +54,7 @@ def _fake_openai_client(content: str = "CONTRADICTION: no\nREASON: N/A\nCREDIBIL
 
 
 def make_client(content: str = "ok") -> OptimizedLLMClient:
-    client = OptimizedLLMClient(config=EchoGraphConfig, openai_api_key="sk-test")
+    client = OptimizedLLMClient(config=GraphMediatorConfig, openai_api_key="sk-test")
     client._openai = _fake_openai_client(content)
     return client
 

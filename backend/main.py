@@ -1,5 +1,5 @@
 """
-FastAPI main application for EchoGraph.
+FastAPI main application for GraphMediator AI.
 Provides REST API and WebSocket endpoints for the multi-agent knowledge base.
 """
 
@@ -382,7 +382,7 @@ async def lifespan(app: FastAPI):
     global knowledge_store, ingestion_graph, query_graph, websocket_manager, demo_mode_enabled
 
     settings = get_settings()
-    logger.info("Starting EchoGraph backend")
+    logger.info("Starting GraphMediator AI backend")
 
     knowledge_store = KnowledgeStore(persist_directory=settings.chromadb_persist_dir)
     ingestion_graph = create_ingestion_graph(knowledge_store)
@@ -398,11 +398,11 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    logger.info("Shutting down EchoGraph backend")
+    logger.info("Shutting down GraphMediator AI backend")
 
 
 app = FastAPI(
-    title="EchoGraph API",
+    title="GraphMediator AI API",
     description="Multi-Agent Living Knowledge Base with Contradiction Resolution",
     version="1.0.0",
     lifespan=lifespan,
@@ -483,7 +483,7 @@ async def request_observability_middleware(request: Request, call_next):
 @app.get("/")
 async def root():
     """Root endpoint."""
-    return {"message": "EchoGraph API", "version": "1.0.0", "status": "running"}
+    return {"message": "GraphMediator AI API", "version": "1.0.0", "status": "running"}
 
 
 @app.get("/health")
@@ -1052,7 +1052,7 @@ async def export_graph():
 
         return JSONResponse(
             content=payload,
-            headers={"Content-Disposition": 'attachment; filename="echograph-export.json"'},
+            headers={"Content-Disposition": 'attachment; filename="graphmediator-export.json"'},
         )
     except Exception as exc:
         logger.exception("Error exporting graph")

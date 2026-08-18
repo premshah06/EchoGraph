@@ -1,5 +1,5 @@
 """
-EchoGraph optimization config — Top Layer for the multi-agent KB pipeline.
+GraphMediator AI optimization config — Top Layer for the multi-agent KB pipeline.
 
 Agent complexity assignments:
   librarian   → 0.35 (structured extraction, simple format)      → routed, usually nano/mini
@@ -20,7 +20,7 @@ reducing per-call context by ~70–76%.
 
 from backend.optimization.configs.base import AgentConfig, OptimizationConfig
 
-EchoGraphConfig = OptimizationConfig(
+GraphMediatorConfig = OptimizationConfig(
     default_model="gpt-4o-mini",
     max_tokens_per_call=1_600,
     cache_prefix_tokens=400,

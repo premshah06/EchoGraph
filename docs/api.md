@@ -1,4 +1,4 @@
-# EchoGraph API Documentation
+# GraphMediator AI API Documentation
 
 ## Base URL
 

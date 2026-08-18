@@ -42,7 +42,7 @@ class KnowledgeStore:
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME,
             metadata={
-                "description": "EchoGraph knowledge graph nodes",
+                "description": "GraphMediator AI knowledge graph nodes",
                 "hnsw:space": "cosine",
             },
         )
@@ -363,7 +363,7 @@ class KnowledgeStore:
         self.collection = self.client.get_or_create_collection(
             name=self.COLLECTION_NAME,
             metadata={
-                "description": "EchoGraph knowledge graph nodes",
+                "description": "GraphMediator AI knowledge graph nodes",
                 "hnsw:space": "cosine",
             },
         )

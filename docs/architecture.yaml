@@ -58,7 +58,7 @@ groups:
       - id: middleware
         label: Middleware
       - id: configs
-        label: Configs (EchoGraph / Builder)
+        label: Configs (GraphMediator / Builder)
 
   - name: Eval Harness
     nodes:

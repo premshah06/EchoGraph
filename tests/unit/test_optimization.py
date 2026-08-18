@@ -7,7 +7,7 @@ import json
 import pytest
 
 from backend.optimization.configs.base import AgentConfig, OptimizationConfig
-from backend.optimization.configs.echograph import EchoGraphConfig
+from backend.optimization.configs.graphmediator import GraphMediatorConfig
 from backend.optimization.configs.project_builder import ProjectBuilderConfig
 from backend.optimization.metrics import CallMetrics, SessionMetrics
 from backend.optimization.middleware import (
@@ -311,39 +311,39 @@ class TestSessionMetrics:
 
 # ── Config correctness ─────────────────────────────────────────────────────
 
-class TestEchoGraphConfig:
+class TestGraphMediatorConfig:
     def test_all_expected_agents_present(self):
         for agent in ("librarian", "philosopher", "critic", "synthesizer", "scholar"):
-            assert agent in EchoGraphConfig.agents
+            assert agent in GraphMediatorConfig.agents
 
     def test_synthesizer_uses_4o(self):
-        assert EchoGraphConfig.agents["synthesizer"].model == "gpt-4o"
+        assert GraphMediatorConfig.agents["synthesizer"].model == "gpt-4o"
 
     def test_librarian_is_unpinned_for_routing(self):
-        assert EchoGraphConfig.agents["librarian"].model is None
+        assert GraphMediatorConfig.agents["librarian"].model is None
 
     def test_philosopher_is_unpinned_for_routing(self):
-        assert EchoGraphConfig.agents["philosopher"].model is None
+        assert GraphMediatorConfig.agents["philosopher"].model is None
 
     def test_critic_is_unpinned_for_routing(self):
-        assert EchoGraphConfig.agents["critic"].model is None
+        assert GraphMediatorConfig.agents["critic"].model is None
 
     def test_synthesizer_and_scholar_remain_pinned(self):
-        assert EchoGraphConfig.agents["synthesizer"].model == "gpt-4o"
-        assert EchoGraphConfig.agents["scholar"].model == "gpt-4o"
+        assert GraphMediatorConfig.agents["synthesizer"].model == "gpt-4o"
+        assert GraphMediatorConfig.agents["scholar"].model == "gpt-4o"
 
     def test_critic_has_low_temperature(self):
-        assert EchoGraphConfig.agents["critic"].temperature <= 0.3
+        assert GraphMediatorConfig.agents["critic"].temperature <= 0.3
 
     def test_philosopher_strips_heavy_fields(self):
-        fields = EchoGraphConfig.agents["philosopher"].fields
+        fields = GraphMediatorConfig.agents["philosopher"].fields
         assert "embedding" not in fields
         assert "times_retrieved" not in fields
 
     def test_scholar_has_highest_complexity(self):
         complexities = {
             name: cfg.base_complexity
-            for name, cfg in EchoGraphConfig.agents.items()
+            for name, cfg in GraphMediatorConfig.agents.items()
         }
         assert complexities["scholar"] == max(complexities.values())
 
@@ -359,8 +359,8 @@ class TestProjectBuilderConfig:
     def test_documenter_uses_auto_routing(self):
         assert ProjectBuilderConfig.agents["documenter"].model is None
 
-    def test_max_tokens_larger_than_echograph(self):
-        assert ProjectBuilderConfig.max_tokens_per_call > EchoGraphConfig.max_tokens_per_call
+    def test_max_tokens_larger_than_graphmediator(self):
+        assert ProjectBuilderConfig.max_tokens_per_call > GraphMediatorConfig.max_tokens_per_call
 
     def test_reviewer_lower_complexity_than_planner(self):
         assert (ProjectBuilderConfig.agents["reviewer"].base_complexity

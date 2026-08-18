@@ -1,8 +1,9 @@
-# EchoGraph
+# GraphMediator AI
 
-EchoGraph is a multi-agent living knowledge base that ingests content, detects contradictions, synthesizes higher-confidence knowledge, and answers questions with source citations.
+GraphMediator AI is a multi-agent living knowledge base that ingests content, detects contradictions, synthesizes higher-confidence knowledge, and answers questions with source citations.
 
-![How a document becomes verified knowledge, and a question becomes a cited answer](docs/architecture/flow-diagram.png)
+![Ingestion flow](docs/architecture/diagram-ingestion.png)
+![Query flow](docs/architecture/diagram-query.png)
 
 ## What You Get
 
@@ -42,7 +43,7 @@ See [docs/features.md](docs/features.md) for the full feature backlog and design
 
 ## Architecture Docs
 
-- System flow diagram (shown above) — source: [docs/architecture/flow-diagram-export.html](docs/architecture/flow-diagram-export.html)
+- System flow diagrams (shown above) — sources: [diagram-ingestion-export.html](docs/architecture/diagram-ingestion-export.html), [diagram-query-export.html](docs/architecture/diagram-query-export.html)
 - Full architecture and diagrams: [ARCHITECTURE.md](ARCHITECTURE.md)
 - Hand-drawn component diagram (regenerate with `/update-architecture-diagram`): [docs/architecture/diagram.html](docs/architecture/diagram.html)
 - API reference: [docs/api.md](docs/api.md)

@@ -1,4 +1,4 @@
-# EchoGraph Developer Guide
+# GraphMediator AI Developer Guide
 
 ## Project Layout
 

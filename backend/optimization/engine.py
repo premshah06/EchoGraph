@@ -33,7 +33,7 @@ class OptimizedLLMClient:
 
     Usage
     -----
-    client = OptimizedLLMClient(config=EchoGraphConfig, openai_api_key="sk-...")
+    client = OptimizedLLMClient(config=GraphMediatorConfig, openai_api_key="sk-...")
     result = client.invoke(agent="librarian", payload={"concept": "...", "summary": "..."})
     print(client.session.summary())
     """

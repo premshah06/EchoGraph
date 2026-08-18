@@ -131,6 +131,13 @@ const dom = {
   filterTypeRaw: document.getElementById("filterTypeRaw"),
   filterTypeSynth: document.getElementById("filterTypeSynth"),
   filterTypeBridge: document.getElementById("filterTypeBridge"),
+  optimizationBadge: document.getElementById("optimizationBadge"),
+  optimizationPanel: document.getElementById("optimizationPanel"),
+  runAuditBtn: document.getElementById("runAuditBtn"),
+  auditSpinner: document.getElementById("auditSpinner"),
+  auditPanel: document.getElementById("auditPanel"),
+  circuitBreakerBanner: document.getElementById("circuitBreakerBanner"),
+  staticPreviewBanner: document.getElementById("staticPreviewBanner"),
 };
 
 const appState = {
@@ -1744,7 +1751,7 @@ async function exportGraph() {
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `echograph-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `graphmediator-export-${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
     addEventLog("export", `Graph exported — ${data.node_count} nodes, ${data.edge_count} edges`);
@@ -1809,6 +1816,37 @@ async function loadGraphData() {
   }
 }
 
+function renderOptimizationPanel(optimization) {
+  if (!optimization || !optimization.total_calls) {
+    dom.optimizationBadge.classList.add("hidden");
+    return '<p class="optimization-empty">No optimized LLM calls recorded yet.</p>';
+  }
+
+  dom.optimizationBadge.classList.remove("hidden");
+  dom.optimizationBadge.textContent = `${optimization.savings_pct}% saved`;
+
+  const modelCounts = new Map();
+  for (const call of optimization.calls || []) {
+    modelCounts.set(call.model, (modelCounts.get(call.model) || 0) + 1);
+  }
+  const modelChips = Array.from(modelCounts.entries())
+    .sort((a, b) => b[1] - a[1])
+    .map(([model, count]) => `<span class="opt-model-chip">${escapeHtml(model)} × ${count}</span>`)
+    .join("");
+
+  return `
+    <div class="opt-grid">
+      <div><span>Total calls</span><strong>${optimization.total_calls}</strong></div>
+      <div><span>Total cost</span><strong>$${optimization.total_cost_usd.toFixed(5)}</strong></div>
+      <div><span>Without routing (est.)</span><strong>$${optimization.estimated_unoptimized_cost.toFixed(5)}</strong></div>
+      <div><span>Savings</span><strong class="opt-savings">${optimization.savings_pct}%</strong></div>
+      <div><span>Cache hits</span><strong>${optimization.cache_hits}</strong></div>
+      <div><span>Avg latency</span><strong>${optimization.avg_latency_ms}ms</strong></div>
+    </div>
+    ${modelChips ? `<div class="opt-model-chips">${modelChips}</div>` : ""}
+  `;
+}
+
 async function refreshStats() {
   const stats = await apiRequest("/graph/stats");
   dom.nodeCount.textContent = stats.node_count;
@@ -1818,10 +1856,38 @@ async function refreshStats() {
 
   const breakdown = document.getElementById("sourceBreakdown");
   if (breakdown) breakdown.innerHTML = renderSourceBreakdown(stats.sources || []);
+
+  if (dom.optimizationPanel) {
+    dom.optimizationPanel.innerHTML = renderOptimizationPanel(stats.optimization);
+  }
+}
+
+function enterStaticPreviewMode() {
+  dom.staticPreviewBanner?.classList.remove("hidden");
+  dom.demoBanner?.classList.add("hidden");
+  dom.circuitBreakerBanner?.classList.add("hidden");
+
+  dom.ingestDocumentBtn.disabled = true;
+  dom.ingestUrlBtn.disabled = true;
+  dom.ingestBatchBtn.disabled = true;
+  dom.queryBtn.disabled = true;
+  dom.runAuditBtn?.setAttribute("disabled", "true");
+  dom.graphSearchBtn?.setAttribute("disabled", "true");
+  dom.resetGraphBtn?.setAttribute("disabled", "true");
+
+  dom.ingestState.textContent = "Preview Mode";
+  addEventLog(
+    "system",
+    "No backend reachable — running as a static UI preview. Ingest, query, and graph features are disabled."
+  );
 }
 
 async function checkHealth() {
   const health = await apiRequest("/health");
+
+  const circuitOpen = health.llm_circuit_breaker?.state === "open";
+  dom.circuitBreakerBanner?.classList.toggle("hidden", !circuitOpen);
+
   if (!health.demo_mode) {
     dom.demoBanner.classList.add("hidden");
     return;
@@ -1835,6 +1901,56 @@ async function checkHealth() {
     "system",
     "Demo mode detected: ingestion disabled until OPENAI_API_KEY is configured."
   );
+}
+
+function renderAuditPanel(summary) {
+  if (!summary || summary.audited_count === 0) {
+    return '<p class="audit-empty">No synthesized nodes with derivation to audit yet.</p>';
+  }
+
+  const miscalibratedPct = Math.round(summary.miscalibration_rate * 100);
+  const rows = summary.results
+    .filter((r) => r.is_miscalibrated)
+    .map((r) => `
+      <div class="audit-row ${escapeHtml(r.direction)}">
+        <div class="audit-row-head">
+          <span class="audit-row-concept">${escapeHtml(r.concept)}</span>
+          <span class="audit-row-badge ${escapeHtml(r.direction)}">${escapeHtml(r.direction.replace("_", " "))}</span>
+        </div>
+        <div class="audit-row-scores">
+          Synthesizer: <strong>${Math.round(r.synthesizer_confidence * 100)}%</strong>
+          → Judge: <strong>${Math.round(r.judge_confidence * 100)}%</strong>
+          (gap ${Math.round(r.gap * 100)}pt)
+        </div>
+        <div class="audit-row-reasoning">${escapeHtml(r.judge_reasoning)}</div>
+      </div>`)
+    .join("");
+
+  return `
+    <div class="opt-grid">
+      <div><span>Audited</span><strong>${summary.audited_count}</strong></div>
+      <div><span>Mean gap</span><strong>${Math.round(summary.mean_gap * 100)}pt</strong></div>
+      <div><span>Miscalibrated</span><strong>${miscalibratedPct}%</strong></div>
+    </div>
+    ${rows ? `<div class="audit-rows">${rows}</div>` : '<p class="audit-empty">Every audited resolution was well-calibrated.</p>'}
+  `;
+}
+
+async function runConfidenceAudit() {
+  dom.runAuditBtn.disabled = true;
+  dom.auditSpinner.classList.remove("hidden");
+  dom.auditPanel.innerHTML = "";
+
+  try {
+    const summary = await apiRequest("/audit/confidence", { method: "POST" });
+    dom.auditPanel.innerHTML = renderAuditPanel(summary);
+    addEventLog("system", `Confidence audit complete: ${summary.audited_count} node(s) audited`);
+  } catch (error) {
+    dom.auditPanel.innerHTML = `<p class="audit-empty">Audit failed: ${escapeHtml(error.message)}</p>`;
+  } finally {
+    dom.runAuditBtn.disabled = false;
+    dom.auditSpinner.classList.add("hidden");
+  }
 }
 
 function setIngestLoading(active, label = "Processing") {
@@ -1944,7 +2060,7 @@ async function ingestDocument() {
 
     addEventLog("ingest", `Submitting ${payload.source_label}`);
     startIngestHistoryEntry(payload.source_label, "document");
-    await apiRequest("/ingest/document", {
+    const result = await apiRequest("/ingest/document", {
       method: "POST",
       body: JSON.stringify(payload),
     });
@@ -1954,7 +2070,12 @@ async function ingestDocument() {
     dom.fileInput.value = "";
     updateUploadProgress(0, "Select a file or paste text below.");
 
-    addEventLog("ingest", "Document ingestion submitted successfully");
+    if (result.status === "duplicate") {
+      finalizeIngestHistoryEntry(result.nodes_created, result.edges_created, "duplicate");
+      addEventLog("ingest", `Skipped — identical content already ingested (${result.ingestion_id.slice(0, 8)}…)`);
+    } else {
+      addEventLog("ingest", "Document ingestion submitted successfully");
+    }
   } catch (error) {
     showUiError(error);
   } finally {
@@ -1974,7 +2095,7 @@ async function ingestUrl() {
     const sessionId = ensureSession();
     startIngestHistoryEntry(url, "url");
 
-    await apiRequest("/ingest/url", {
+    const result = await apiRequest("/ingest/url", {
       method: "POST",
       body: JSON.stringify({
         url,
@@ -1983,7 +2104,13 @@ async function ingestUrl() {
     });
 
     dom.urlInput.value = "";
-    addEventLog("ingest", `URL ingestion submitted: ${url}`);
+
+    if (result.status === "duplicate") {
+      finalizeIngestHistoryEntry(result.nodes_created, result.edges_created, "duplicate");
+      addEventLog("ingest", `Skipped — identical content already ingested (${result.ingestion_id.slice(0, 8)}…)`);
+    } else {
+      addEventLog("ingest", `URL ingestion submitted: ${url}`);
+    }
   } catch (error) {
     showUiError(error);
   } finally {
@@ -2535,6 +2662,7 @@ function bindEvents() {
   dom.graphSearchInput.addEventListener("keydown", e => {
     if (e.key === "Enter") { e.preventDefault(); searchGraph(); }
   });
+  dom.runAuditBtn?.addEventListener("click", runConfidenceAudit);
   dom.batchContent.addEventListener("input", () => {
     const docs = parseBatchDocuments(dom.batchContent.value, "x");
     dom.batchCountHint.textContent = `${docs.length} document${docs.length !== 1 ? "s" : ""} detected`;
@@ -2590,23 +2718,44 @@ async function initialize() {
   showInspector(null);
   clearPipelineTimeline();
 
-  await Promise.all([
+  const results = await Promise.allSettled([
     loadGraphData(),
     refreshStats(),
-    checkHealth().catch((error) => {
-      addEventLog("error", `Health check failed: ${error.message}`);
-    }),
+    checkHealth(),
   ]);
+
+  // No single one of these calls failing is conclusive on its own (a real
+  // backend can have a transient issue with one endpoint), but ALL THREE
+  // failing together — on the very first load, before any user action —
+  // means there's no working backend at this origin at all (e.g. a static
+  // GitHub Pages deploy with API_BASE pointing at a host with nothing
+  // listening). Checking for the "failed to fetch" network-error message
+  // alone isn't reliable: a real host that responds with its own 404 page
+  // (as GitHub Pages does for an unknown path) produces a different message
+  // entirely, not a fetch-level failure.
+  const noBackend = results.every((r) => r.status === "rejected");
+
+  if (noBackend) {
+    enterStaticPreviewMode();
+  } else {
+    for (const result of results) {
+      if (result.status === "rejected") {
+        addEventLog("error", `Startup check failed: ${result.reason?.message}`);
+      }
+    }
+  }
 
   ensureSession();
   renderQueryHistory();
   addEventLog("system", "Application initialized");
 
-  window.setInterval(() => {
-    refreshStats().catch((error) => {
-      addEventLog("error", `Stats refresh failed: ${error.message}`);
-    });
-  }, 25000);
+  if (!noBackend) {
+    window.setInterval(() => {
+      refreshStats().catch((error) => {
+        addEventLog("error", `Stats refresh failed: ${error.message}`);
+      });
+    }, 25000);
+  }
 }
 
 initialize().catch((error) => {

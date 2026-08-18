@@ -1,0 +1,97 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #f7f5f0; }
+  body {
+    width: 1180px;
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    padding: 36px 40px 32px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8b8578;
+    margin: 0 0 8px;
+  }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 22px;
+    margin: 0 0 22px;
+    color: #1a1d29;
+  }
+  h1 .sub { font-weight: 400; color: #4a4d5c; font-size: 15px; margin-left: 10px; }
+  figure { margin: 0; }
+  svg { display: block; width: 100%; height: auto; }
+  .footer { margin-top: 14px; font-size: 11.5px; color: #a19c8c; text-align: right; }
+</style>
+</head>
+<body>
+  <p class="eyebrow">System flow</p>
+  <h1>Query <span class="sub">POST /query — streamed over WebSocket</span></h1>
+
+  <figure>
+    <svg viewBox="0 0 1180 200" role="img" aria-label="Query flow">
+      <defs>
+        <marker id="arrow2" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+          <polygon points="0,0 8,4 0,8" fill="#1a1d29" />
+        </marker>
+        <marker id="arrow2-teal" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+          <polygon points="0,0 8,4 0,8" fill="#3a6b5c" />
+        </marker>
+        <marker id="arrow2-terracotta" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+          <polygon points="0,0 8,4 0,8" fill="#c9622a" />
+        </marker>
+        <filter id="soft-shadow2" x="-30%" y="-30%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1d29" flood-opacity="0.10" />
+        </filter>
+      </defs>
+
+      <g filter="url(#soft-shadow2)">
+        <rect x="10" y="65" width="120" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.4" />
+      </g>
+      <text x="70" y="91" text-anchor="middle" font-size="12.5" fill="#1a1d29">Question</text>
+      <text x="70" y="107" text-anchor="middle" font-size="11" fill="#4a4d5c">from user</text>
+
+      <line x1="130" y1="95" x2="200" y2="95" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow2)" />
+
+      <g filter="url(#soft-shadow2)">
+        <rect x="202" y="65" width="150" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.7" />
+      </g>
+      <text x="277" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1d29">Scholar</text>
+      <text x="277" y="108" text-anchor="middle" font-size="11" fill="#4a4d5c">embeds &amp; retrieves</text>
+
+      <line x1="352" y1="95" x2="440" y2="95" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow2)" />
+      <text x="396" y="83" text-anchor="middle" font-size="10" fill="#8b8578">top-k match</text>
+
+      <g filter="url(#soft-shadow2)">
+        <rect x="442" y="65" width="170" height="60" rx="8" fill="#f4f9f7" stroke="#3a6b5c" stroke-width="2" />
+      </g>
+      <text x="527" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="#3a6b5c">Knowledge Store</text>
+      <text x="527" y="108" text-anchor="middle" font-size="11" fill="#4a4d5c">ranked nodes</text>
+
+      <line x1="612" y1="95" x2="700" y2="95" stroke="#3a6b5c" stroke-width="1.4" marker-end="url(#arrow2-teal)" />
+      <text x="656" y="83" text-anchor="middle" font-size="10" fill="#3a6b5c">cited context</text>
+
+      <g filter="url(#soft-shadow2)">
+        <rect x="702" y="65" width="160" height="60" rx="8" fill="#ffffff" stroke="#1a1d29" stroke-width="1.7" />
+      </g>
+      <text x="782" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="#1a1d29">Scholar</text>
+      <text x="782" y="108" text-anchor="middle" font-size="11" fill="#4a4d5c">generates answer</text>
+
+      <line x1="862" y1="95" x2="1010" y2="95" stroke="#c9622a" stroke-width="1.7" marker-end="url(#arrow2-terracotta)" />
+      <text x="936" y="83" text-anchor="middle" font-size="10" fill="#c9622a">token · token · token</text>
+
+      <g filter="url(#soft-shadow2)">
+        <rect x="1012" y="65" width="140" height="60" rx="8" fill="#fff8f4" stroke="#c9622a" stroke-width="2" />
+      </g>
+      <text x="1082" y="91" text-anchor="middle" font-size="13" font-weight="700" fill="#c9622a">Client</text>
+      <text x="1082" y="108" text-anchor="middle" font-size="11" fill="#4a4d5c">renders live</text>
+    </svg>
+  </figure>
+</body>
+</html>

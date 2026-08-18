@@ -70,7 +70,7 @@ class PayloadCompressor:
     """
     Strips node/context payloads to only the fields each agent actually reads.
 
-    Compression ratio example for a full EchoGraph node:
+    Compression ratio example for a full GraphMediator AI node:
       Full node  ≈ 380 tokens  (includes embedding, created_at, times_retrieved, …)
       Compressed ≈  90 tokens  (concept + summary only for librarian)
       Saving     ≈  76%

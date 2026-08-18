@@ -77,7 +77,7 @@ def run_case(case: GoldenCase) -> CaseResult:
     settings = get_settings()
     is_smoke_test_only = settings.demo_mode or not settings.is_openai_configured
 
-    tmp_dir = tempfile.mkdtemp(prefix=f"echograph_eval_{case.id}_")
+    tmp_dir = tempfile.mkdtemp(prefix=f"graphmediator_eval_{case.id}_")
     try:
         store = KnowledgeStore(persist_directory=tmp_dir)
         ingestion_graph = create_ingestion_graph(store)

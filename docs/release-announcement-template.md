@@ -1,8 +1,8 @@
 # Release Announcement Template
 
-## EchoGraph Launch
+## GraphMediator AI Launch
 
-We are launching EchoGraph, a multi-agent living knowledge base with:
+We are launching GraphMediator AI, a multi-agent living knowledge base with:
 
 - contradiction detection and synthesis
 - citation-grounded query answering

@@ -6,7 +6,7 @@
     name="viewport"
     content="width=device-width, initial-scale=1.0, viewport-fit=cover"
   />
-  <title>EchoGraph | Multi-Agent Knowledge Graph</title>
+  <title>GraphMediator AI | Multi-Agent Knowledge Graph</title>
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -15,7 +15,7 @@
     rel="stylesheet"
   />
 
-  <link rel="stylesheet" href="css/style.css?v=21" />
+  <link rel="stylesheet" href="css/style.css?v=22" />
 
   <script type="importmap">
     {
@@ -30,7 +30,7 @@
   <div class="app-shell">
     <header class="site-header">
       <nav class="site-nav">
-        <a class="brand" href="#" aria-label="EchoGraph home">
+        <a class="brand" href="#" aria-label="GraphMediator AI home">
           <svg class="brand-mark" viewBox="0 0 38 38" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <defs>
               <polygon id="hx" points="0,-5 4.33,-2.5 4.33,2.5 0,5 -4.33,2.5 -4.33,-2.5"/>
@@ -44,7 +44,7 @@
             <use href="#hx" transform="translate(23.33,11.5)" fill="#f59e0b" opacity="0.45"/>
           </svg>
           <span class="brand-copy">
-            <strong>EchoGraph</strong>
+            <strong>GraphMediator AI</strong>
             <small>Living Knowledge Base</small>
           </span>
         </a>
@@ -73,6 +73,15 @@
 
     <div id="demoBanner" class="demo-banner hidden" role="status" aria-live="polite">
       Demo mode is active. Ingestion is disabled until an OpenAI API key is configured.
+    </div>
+
+    <div id="circuitBreakerBanner" class="circuit-breaker-banner hidden" role="alert" aria-live="assertive">
+      ⚠ LLM service degraded — the circuit breaker has opened after repeated failures. Calls are failing fast until it recovers.
+    </div>
+
+    <div id="staticPreviewBanner" class="static-preview-banner hidden" role="status" aria-live="polite">
+      🖼️ This is a static UI preview — no backend is running, so ingest, query, and graph features are non-functional here.
+      <a href="https://github.com/premshah06/EchoGraph" target="_blank" rel="noopener noreferrer">Run it locally</a> for the full working app.
     </div>
 
     <main class="layout">
@@ -198,6 +207,27 @@ Document 3 text here..."></textarea>
             <div id="sourceBreakdown" class="source-breakdown">
               <p class="source-breakdown-empty">No sources yet.</p>
             </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Cost &amp; Model Routing</h2>
+              <span id="optimizationBadge" class="chip hidden"></span>
+            </div>
+            <p class="hint">Live cost/routing data from the multi-model optimization engine, since server start.</p>
+            <div id="optimizationPanel" class="optimization-panel">
+              <p class="optimization-empty">No optimized LLM calls recorded yet.</p>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head">
+              <h2>Confidence Calibration</h2>
+              <div id="auditSpinner" class="spinner hidden" aria-hidden="true"></div>
+            </div>
+            <p class="hint">Independently re-judges Synthesizer's already-published resolutions and checks whether its self-reported confidence holds up.</p>
+            <button id="runAuditBtn" class="btn ghost" type="button">Run Confidence Audit</button>
+            <div id="auditPanel" class="audit-panel"></div>
           </section>
         </div>
 
@@ -325,7 +355,7 @@ Document 3 text here..."></textarea>
     </main>
 
     <footer class="site-footer">
-      <p>EchoGraph | Multi-Agent Knowledge Graph</p>
+      <p>GraphMediator AI | Multi-Agent Knowledge Graph</p>
     </footer>
   </div>
 
@@ -391,6 +421,6 @@ Document 3 text here..."></textarea>
     }
   </script>
 
-  <script type="module" src="js/app.js?v=21"></script>
+  <script type="module" src="js/app.js?v=22"></script>
 </body>
 </html>

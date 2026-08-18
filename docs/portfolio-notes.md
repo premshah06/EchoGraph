@@ -54,7 +54,7 @@ rebases, branch switches, pulls) rather than the naive single-hook version.
 
 ---
 
-## 2026-07-06 — Shipped three flagship agentic-engineering features on EchoGraph
+## 2026-07-06 — Shipped three flagship agentic-engineering features on GraphMediator AI
 
 **What I built:** Three features chosen specifically to demonstrate senior-level
 agentic engineering depth: an agent evaluation harness, a working multi-model
@@ -120,7 +120,7 @@ their conclusions auditable."
   from the roadmap.
 
 **Artifacts from this work:**
-- `backend/optimization/engine.py`, `backend/optimization/configs/echograph.py` (router fix)
+- `backend/optimization/engine.py`, `backend/optimization/configs/graphmediator.py` (router fix)
 - `backend/eval/` — `fixtures.py`, `runner.py`, `scorer.py`, `run.py`, `fixtures/*.json` (eval harness)
 - `backend/agents/synthesizer.py`, `backend/graphs/ingestion_graph.py`, `backend/knowledge_store.py`, `GET /graph/nodes/{id}/provenance` (provenance ledger)
 - `tests/unit/test_optimization_engine.py`, `tests/unit/test_eval_harness.py`, plus additions to `tests/unit/test_knowledge_store.py` and `tests/integration/test_api_endpoints.py`

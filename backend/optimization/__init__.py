@@ -3,7 +3,7 @@
 from backend.optimization.engine import OptimizedLLMClient
 from backend.optimization.metrics import CallMetrics, SessionMetrics
 from backend.optimization.configs.base import AgentConfig, OptimizationConfig
-from backend.optimization.configs.echograph import EchoGraphConfig
+from backend.optimization.configs.graphmediator import GraphMediatorConfig
 from backend.optimization.configs.project_builder import ProjectBuilderConfig
 
 __all__ = [
@@ -12,6 +12,6 @@ __all__ = [
     "SessionMetrics",
     "AgentConfig",
     "OptimizationConfig",
-    "EchoGraphConfig",
+    "GraphMediatorConfig",
     "ProjectBuilderConfig",
 ]

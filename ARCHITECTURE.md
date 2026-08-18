@@ -1,6 +1,6 @@
-# EchoGraph Architecture
+# GraphMediator AI Architecture
 
-This document describes the system architecture, data flow, runtime components, and deployment model for EchoGraph.
+This document describes the system architecture, data flow, runtime components, and deployment model for GraphMediator AI.
 
 ## 1. High-Level System
 
