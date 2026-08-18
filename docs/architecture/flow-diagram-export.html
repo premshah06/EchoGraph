@@ -1,0 +1,239 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #f7f5f0; }
+  body {
+    width: 1200px;
+    font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+    padding: 40px 44px 36px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: #8b8578;
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1.12;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    color: #1a1d29;
+    max-width: 30ch;
+  }
+  .lede {
+    font-size: 15px;
+    line-height: 1.55;
+    color: #4a4d5c;
+    max-width: 78ch;
+    margin: 0 0 30px;
+  }
+  .lane { margin-top: 30px; }
+  .lane-label { display: flex; align-items: baseline; gap: 10px; margin-bottom: 12px; }
+  .lane-tag { font-family: Georgia, serif; font-weight: 700; font-size: 19px; color: #1a1d29; }
+  .lane-sub { font-size: 13px; color: #8b8578; }
+  figure {
+    margin: 0;
+    border: 1px solid #dcd7c9;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 22px 22px 16px;
+  }
+  svg { display: block; width: 100%; height: auto; }
+  figcaption {
+    margin-top: 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #4a4d5c;
+    border-top: 1px solid #dcd7c9;
+    padding-top: 12px;
+  }
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    margin-top: 32px;
+    padding-top: 20px;
+    border-top: 1px solid #c7c2b4;
+    font-size: 13px;
+    color: #4a4d5c;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .swatch { width: 20px; height: 4px; border-radius: 2px; flex-shrink: 0; }
+  .swatch.terracotta { background: #c9622a; }
+  .swatch.teal { background: #3a6b5c; }
+  .swatch.ink { background: #4a4d5c; }
+  .swatch.dashed { background: none; border-top: 3px dashed #8b8578; height: 0; }
+  .footer {
+    margin-top: 30px;
+    font-size: 12px;
+    color: #8b8578;
+    text-align: right;
+  }
+</style>
+</head>
+<body>
+  <p class="eyebrow">EchoGraph — system flow</p>
+  <h1>How a document becomes verified knowledge, and a question becomes a cited answer</h1>
+  <p class="lede">
+    Two LangGraph pipelines share one knowledge store. Ingestion runs a fixed agent sequence with one
+    conditional loop; querying is a single retrieval + streamed-generation hop. The loop is the part
+    worth understanding — it's what turns disagreement between sources into resolved, ranked knowledge.
+  </p>
+
+  <div class="lane">
+    <div class="lane-label">
+      <span class="lane-tag">Ingestion</span>
+      <span class="lane-sub">POST /ingest/document · /ingest/url · /ingest/batch</span>
+    </div>
+    <figure>
+      <svg viewBox="0 0 1120 430" role="img" aria-label="Ingestion flow">
+        <defs>
+          <marker id="arrow" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+            <polygon points="0,0 8,4 0,8" fill="#1a1d29" />
+          </marker>
+          <marker id="arrow-terracotta" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+            <polygon points="0,0 8,4 0,8" fill="#c9622a" />
+          </marker>
+          <marker id="arrow-teal" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+            <polygon points="0,0 8,4 0,8" fill="#3a6b5c" />
+          </marker>
+        </defs>
+
+        <rect x="10" y="150" width="120" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.4" />
+        <text x="70" y="175" text-anchor="middle" font-size="12" fill="#1a1d29">Raw</text>
+        <text x="70" y="191" text-anchor="middle" font-size="12" fill="#1a1d29">document</text>
+
+        <line x1="130" y1="180" x2="178" y2="180" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+
+        <rect x="180" y="150" width="140" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.6" />
+        <text x="250" y="176" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1a1d29">Librarian</text>
+        <text x="250" y="193" text-anchor="middle" font-size="10.5" fill="#4a4d5c">extracts concepts</text>
+
+        <line x1="320" y1="180" x2="368" y2="180" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+        <text x="344" y="170" text-anchor="middle" font-size="9.5" fill="#8b8578">concepts</text>
+
+        <rect x="370" y="150" width="150" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.6" />
+        <text x="445" y="176" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1a1d29">Philosopher</text>
+        <text x="445" y="193" text-anchor="middle" font-size="10.5" fill="#4a4d5c">links relationships</text>
+
+        <line x1="520" y1="180" x2="568" y2="180" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+
+        <rect x="570" y="150" width="130" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.6" />
+        <text x="635" y="176" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1a1d29">Critic</text>
+        <text x="635" y="193" text-anchor="middle" font-size="10.5" fill="#4a4d5c">flags conflicts</text>
+
+        <path d="M 635 210 L 635 330 L 900 330" fill="none" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow)" />
+        <text x="660" y="325" font-size="9.5" fill="#8b8578">no contradiction</text>
+
+        <line x1="700" y1="180" x2="748" y2="180" stroke="#c9622a" stroke-width="1.6" marker-end="url(#arrow-terracotta)" />
+        <text x="724" y="167" text-anchor="middle" font-size="9.5" fill="#c9622a">contradiction</text>
+
+        <rect x="750" y="150" width="150" height="60" rx="6" fill="none" stroke="#c9622a" stroke-width="1.8" />
+        <text x="825" y="176" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c9622a">Synthesizer</text>
+        <text x="825" y="193" text-anchor="middle" font-size="10.5" fill="#4a4d5c">resolves dialectically</text>
+
+        <path d="M 825 150 C 825 70, 635 70, 635 150" fill="none" stroke="#c9622a" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrow-terracotta)" />
+        <text x="730" y="60" text-anchor="middle" font-size="10" fill="#c9622a" font-weight="600">confidence &lt; 0.6 and loop &lt; 3</text>
+        <text x="730" y="74" text-anchor="middle" font-size="9" fill="#8b8578">re-run Critic on the synthesis</text>
+
+        <path d="M 900 195 L 900 330" fill="none" stroke="#3a6b5c" stroke-width="1.6" marker-end="url(#arrow-teal)" />
+        <text x="915" y="265" font-size="9.5" fill="#3a6b5c">confidence ≥ 0.6</text>
+        <text x="915" y="277" font-size="9.5" fill="#3a6b5c">or loop = 3</text>
+
+        <rect x="900" y="300" width="150" height="60" rx="6" fill="none" stroke="#3a6b5c" stroke-width="1.8" />
+        <text x="975" y="326" text-anchor="middle" font-size="12.5" font-weight="700" fill="#3a6b5c">Knowledge Store</text>
+        <text x="975" y="343" text-anchor="middle" font-size="10.5" fill="#4a4d5c">ChromaDB, ranked</text>
+
+        <rect x="10" y="260" width="120" height="46" rx="6" fill="none" stroke="#8b8578" stroke-width="1.2" stroke-dasharray="3 3" />
+        <text x="70" y="279" text-anchor="middle" font-size="9.5" fill="#8b8578">same content</text>
+        <text x="70" y="292" text-anchor="middle" font-size="9.5" fill="#8b8578">hash already seen?</text>
+        <path d="M 70 260 L 70 210" fill="none" stroke="#8b8578" stroke-width="1.2" stroke-dasharray="3 3" marker-end="url(#arrow)" />
+        <text x="20" y="240" font-size="9" fill="#8b8578">skip →</text>
+      </svg>
+      <figcaption>
+        Every ingested document is first checked against a content hash of prior ingestions — an
+        identical resubmission is skipped before any agent runs. Otherwise it flows Librarian →
+        Philosopher → Critic. A contradiction routes to Synthesizer, which reasons dialectically toward
+        a reconciled claim and a self-reported confidence score; if that confidence stays below 0.6 and
+        fewer than three loops have run, the resolution is sent back through Critic for another pass
+        before anything is written. Everything lands in the same ChromaDB store, ranked by confidence.
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="lane">
+    <div class="lane-label">
+      <span class="lane-tag">Query</span>
+      <span class="lane-sub">POST /query — streamed over WebSocket</span>
+    </div>
+    <figure>
+      <svg viewBox="0 0 1120 190" role="img" aria-label="Query flow">
+        <defs>
+          <marker id="arrow2" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+            <polygon points="0,0 8,4 0,8" fill="#1a1d29" />
+          </marker>
+          <marker id="arrow2-teal" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+            <polygon points="0,0 8,4 0,8" fill="#3a6b5c" />
+          </marker>
+          <marker id="arrow2-terracotta" markerWidth="9" markerHeight="9" refX="7" refY="4" orient="auto">
+            <polygon points="0,0 8,4 0,8" fill="#c9622a" />
+          </marker>
+        </defs>
+
+        <rect x="10" y="60" width="120" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.4" />
+        <text x="70" y="86" text-anchor="middle" font-size="12" fill="#1a1d29">Question</text>
+        <text x="70" y="102" text-anchor="middle" font-size="10.5" fill="#4a4d5c">from user</text>
+
+        <line x1="130" y1="90" x2="178" y2="90" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow2)" />
+
+        <rect x="180" y="60" width="150" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.6" />
+        <text x="255" y="86" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1a1d29">Scholar</text>
+        <text x="255" y="103" text-anchor="middle" font-size="10.5" fill="#4a4d5c">embeds &amp; retrieves</text>
+
+        <line x1="330" y1="90" x2="378" y2="90" stroke="#1a1d29" stroke-width="1.4" marker-end="url(#arrow2)" />
+        <text x="354" y="80" text-anchor="middle" font-size="9.5" fill="#8b8578">top-k match</text>
+
+        <rect x="380" y="60" width="150" height="60" rx="6" fill="none" stroke="#3a6b5c" stroke-width="1.8" />
+        <text x="455" y="86" text-anchor="middle" font-size="12.5" font-weight="700" fill="#3a6b5c">Knowledge Store</text>
+        <text x="455" y="103" text-anchor="middle" font-size="10.5" fill="#4a4d5c">ranked nodes</text>
+
+        <path d="M 530 90 C 570 90, 570 90, 610 90" fill="none" stroke="#3a6b5c" stroke-width="1.4" marker-end="url(#arrow2-teal)" />
+        <text x="570" y="80" text-anchor="middle" font-size="9.5" fill="#3a6b5c">cited context</text>
+
+        <rect x="610" y="60" width="150" height="60" rx="6" fill="none" stroke="#1a1d29" stroke-width="1.6" />
+        <text x="685" y="86" text-anchor="middle" font-size="12.5" font-weight="700" fill="#1a1d29">Scholar</text>
+        <text x="685" y="103" text-anchor="middle" font-size="10.5" fill="#4a4d5c">generates answer</text>
+
+        <line x1="760" y1="90" x2="808" y2="90" stroke="#c9622a" stroke-width="1.6" marker-end="url(#arrow2-terracotta)" />
+        <text x="784" y="80" text-anchor="middle" font-size="9.5" fill="#c9622a">token · token · token</text>
+
+        <rect x="810" y="60" width="140" height="60" rx="6" fill="none" stroke="#c9622a" stroke-width="1.8" />
+        <text x="880" y="86" text-anchor="middle" font-size="12.5" font-weight="700" fill="#c9622a">Client</text>
+        <text x="880" y="103" text-anchor="middle" font-size="10.5" fill="#4a4d5c">renders live</text>
+      </svg>
+      <figcaption>
+        Retrieval is a single hop, not a loop — the query graph has no conditional edges. What's
+        notable is the last leg: rather than waiting for one complete response, Scholar streams
+        generated tokens over the same WebSocket channel used for ingestion progress, so the answer
+        appears incrementally, citations and all.
+      </figcaption>
+    </figure>
+  </div>
+
+  <div class="legend">
+    <span class="legend-item"><span class="swatch ink"></span>fixed sequence</span>
+    <span class="legend-item"><span class="swatch terracotta"></span>contradiction / streamed output</span>
+    <span class="legend-item"><span class="swatch teal"></span>resolved &amp; persisted</span>
+    <span class="legend-item"><span class="swatch dashed"></span>conditional loop</span>
+  </div>
+
+  <div class="footer">github.com/premshah06/EchoGraph</div>
+</body>
+</html>

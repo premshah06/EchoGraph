@@ -2,7 +2,7 @@
 
 EchoGraph is a multi-agent living knowledge base that ingests content, detects contradictions, synthesizes higher-confidence knowledge, and answers questions with source citations.
 
-![EchoGraph Architecture](arch_image.png)
+![How a document becomes verified knowledge, and a question becomes a cited answer](docs/architecture/flow-diagram.png)
 
 ## What You Get
 
@@ -17,7 +17,7 @@ EchoGraph is a multi-agent living knowledge base that ingests content, detects c
 ### Agentic Engineering
 
 - **Evaluation harness** (`backend/eval/`) — runs golden documents through the real ingestion/query pipelines and scores concept recall, contradiction detection, and confidence calibration against labeled expectations (`python -m backend.eval.run`)
-- **Multi-model cost router** (`backend/optimization/`) — routes each agent to the cheapest model that meets its complexity needs, with payload compression, prompt caching, and per-call cost tracking surfaced via `GET /graph/stats`
+- **Multi-model cost router** (`backend/optimization/`) — routes each agent to the cheapest model that meets its complexity needs, with payload compression, prompt caching, and per-call cost tracking surfaced via `GET /graph/stats`. Measured **94.9% cost savings** vs. an unrouted gpt-4o baseline on a real ingestion + query run (see `docs/features.md` #3 for the full measurement and two bugs found while verifying it)
 - **Provenance ledger** — every synthesized node records its full derivation chain (source nodes, the contradiction Critic flagged, Synthesizer's reasoning, resolution loop iteration), queryable via `GET /graph/nodes/{id}/provenance` and viewable as a "why does the graph believe this?" trace in the UI
 - **Token-level streaming** — Scholar's query answers stream live over the WebSocket as they generate, instead of waiting for one complete response
 - **Idempotent ingestion** — content-hash deduplication on `/ingest/*` skips re-processing identical documents, returning the original result with zero extra LLM calls
@@ -42,8 +42,9 @@ See [docs/features.md](docs/features.md) for the full feature backlog and design
 
 ## Architecture Docs
 
+- System flow diagram (shown above) — source: [docs/architecture/flow-diagram-export.html](docs/architecture/flow-diagram-export.html)
 - Full architecture and diagrams: [ARCHITECTURE.md](ARCHITECTURE.md)
-- Hand-drawn system diagram (regenerate with `/update-architecture-diagram`): [docs/architecture/diagram.html](docs/architecture/diagram.html)
+- Hand-drawn component diagram (regenerate with `/update-architecture-diagram`): [docs/architecture/diagram.html](docs/architecture/diagram.html)
 - API reference: [docs/api.md](docs/api.md)
 - Developer guide: [docs/developer-guide.md](docs/developer-guide.md)
 - Feature backlog and design notes: [docs/features.md](docs/features.md)
